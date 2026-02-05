@@ -2,9 +2,8 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GoPlus } from "react-icons/go";
+import { useTranslation } from "react-i18next";
 import { LoadingButton } from "@/components/loading-button";
-import { ProxyFormDialog } from "@/components/proxy-form-dialog";
 import { SharedCamoufoxConfigForm } from "@/components/shared-camoufox-config-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,18 +16,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { WayfernConfigForm } from "@/components/wayfern-config-form";
 
 import { useBrowserDownload } from "@/hooks/use-browser-download";
-import { useProxyEvents } from "@/hooks/use-proxy-events";
 import { getBrowserIcon } from "@/lib/browser-utils";
 import type {
   BrowserReleaseTypes,
@@ -107,6 +98,7 @@ export function CreateProfileDialog({
   onCreateProfile,
   selectedGroupId,
 }: CreateProfileDialogProps) {
+  const { t } = useTranslation();
   const [profileName, setProfileName] = useState("");
   const [currentStep, setCurrentStep] = useState<
     "browser-selection" | "browser-config"
@@ -152,8 +144,6 @@ export function CreateProfileDialog({
   };
 
   const [supportedBrowsers, setSupportedBrowsers] = useState<string[]>([]);
-  const { storedProxies } = useProxyEvents();
-  const [showProxyForm, setShowProxyForm] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [releaseTypes, setReleaseTypes] = useState<BrowserReleaseTypes>();
   const [isLoadingReleaseTypes, setIsLoadingReleaseTypes] = useState(false);
@@ -496,8 +486,8 @@ export function CreateProfileDialog({
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>
             {currentStep === "browser-selection"
-              ? "Create New Profile"
-              : "Configure Profile"}
+              ? t("createProfile.title")
+              : t("createProfile.configureTitle")}
           </DialogTitle>
         </DialogHeader>
 
@@ -518,10 +508,10 @@ export function CreateProfileDialog({
                       <div className="space-y-6">
                         <div className="text-center">
                           <h3 className="text-lg font-medium">
-                            Anti-Detect Browser
+                            {t("createProfile.browserSelection.title")}
                           </h3>
                           <p className="mt-2 text-sm text-muted-foreground">
-                            Choose a browser with anti-detection capabilities
+                            {t("createProfile.browserSelection.description")}
                           </p>
                         </div>
 
@@ -542,10 +532,10 @@ export function CreateProfileDialog({
                             </div>
                             <div className="text-left">
                               <div className="font-medium">
-                                Chromium (Wayfern)
+                                {t("createProfile.chromiumWayfern")}
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                Anti-Detect Browser
+                                {t("createProfile.antiDetectBrowser")}
                               </div>
                             </div>
                           </Button>
@@ -567,10 +557,10 @@ export function CreateProfileDialog({
                             </div>
                             <div className="text-left">
                               <div className="font-medium">
-                                Firefox (Camoufox)
+                                {t("createProfile.firefoxCamoufox")}
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                Anti-Detect Browser
+                                {t("createProfile.antiDetectBrowser")}
                               </div>
                             </div>
                           </Button>
@@ -827,10 +817,10 @@ export function CreateProfileDialog({
                             {selectedBrowser && (
                               <div className="space-y-3">
                                 {isLoadingReleaseTypes && (
-                                  <div className="flex gap-3 items-center">
+                                  <div className="flex gap-3 items-center p-3 rounded-md border">
                                     <div className="w-4 h-4 rounded-full border-2 animate-spin border-muted/40 border-t-primary" />
                                     <p className="text-sm text-muted-foreground">
-                                      Fetching available versions...
+                                      {t("createProfile.fetchingVersions")}
                                     </p>
                                   </div>
                                 )}
@@ -921,48 +911,6 @@ export function CreateProfileDialog({
                             )}
                           </div>
                         )}
-
-                        {/* Proxy Selection - Always visible */}
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center">
-                            <Label>Proxy</Label>
-                            <RippleButton
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setShowProxyForm(true)}
-                              className="px-2 h-7 text-xs"
-                            >
-                              <GoPlus className="mr-1 w-3 h-3" /> Add Proxy
-                            </RippleButton>
-                          </div>
-                          {storedProxies.length > 0 ? (
-                            <Select
-                              value={selectedProxyId || "none"}
-                              onValueChange={(value) =>
-                                setSelectedProxyId(
-                                  value === "none" ? undefined : value,
-                                )
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="No proxy" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">No proxy</SelectItem>
-                                {storedProxies.map((proxy) => (
-                                  <SelectItem key={proxy.id} value={proxy.id}>
-                                    {proxy.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <div className="flex gap-3 items-center p-3 text-sm rounded-md border text-muted-foreground">
-                              No proxies available. Add one to route this
-                              profile's traffic.
-                            </div>
-                          )}
-                        </div>
                       </div>
                     </TabsContent>
 
@@ -1082,48 +1030,6 @@ export function CreateProfileDialog({
                             </div>
                           )}
                         </div>
-
-                        {/* Proxy Selection - Always visible */}
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center">
-                            <Label>Proxy</Label>
-                            <RippleButton
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setShowProxyForm(true)}
-                              className="px-2 h-7 text-xs"
-                            >
-                              <GoPlus className="mr-1 w-3 h-3" /> Add Proxy
-                            </RippleButton>
-                          </div>
-                          {storedProxies.length > 0 ? (
-                            <Select
-                              value={selectedProxyId || "none"}
-                              onValueChange={(value) =>
-                                setSelectedProxyId(
-                                  value === "none" ? undefined : value,
-                                )
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="No proxy" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">No proxy</SelectItem>
-                                {storedProxies.map((proxy) => (
-                                  <SelectItem key={proxy.id} value={proxy.id}>
-                                    {proxy.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <div className="flex gap-3 items-center p-3 text-sm rounded-md border text-muted-foreground">
-                              No proxies available. Add one to route this
-                              profile's traffic.
-                            </div>
-                          )}
-                        </div>
                       </div>
                     </TabsContent>
                   </>
@@ -1137,27 +1043,23 @@ export function CreateProfileDialog({
           {currentStep === "browser-config" ? (
             <>
               <RippleButton variant="outline" onClick={handleBack}>
-                Back
+                {t("createProfile.back")}
               </RippleButton>
               <LoadingButton
                 onClick={handleCreate}
                 isLoading={isCreating}
                 disabled={isCreateDisabled}
               >
-                Create
+                {t("createProfile.create")}
               </LoadingButton>
             </>
           ) : (
             <RippleButton variant="outline" onClick={handleClose}>
-              Cancel
+              {t("createProfile.cancel")}
             </RippleButton>
           )}
         </DialogFooter>
       </DialogContent>
-      <ProxyFormDialog
-        isOpen={showProxyForm}
-        onClose={() => setShowProxyForm(false)}
-      />
     </Dialog>
   );
 }

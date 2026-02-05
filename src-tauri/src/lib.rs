@@ -45,6 +45,8 @@ mod daemon_spawn;
 pub mod daemon_ws;
 pub mod events;
 mod mcp_server;
+mod odoo;
+mod s3_transfer;
 mod tag_manager;
 mod version_updater;
 pub mod vpn;
@@ -55,8 +57,9 @@ use browser_runner::{
 
 use profile::manager::{
   check_browser_status, clone_profile, create_browser_profile_new, delete_profile,
-  list_browser_profiles, rename_profile, update_camoufox_config, update_profile_note,
-  update_profile_proxy, update_profile_tags, update_wayfern_config,
+  import_zsmkt_profiles_batch, list_browser_profiles, rename_profile, update_camoufox_config,
+  update_profile_note, update_profile_odoo_id, update_profile_proxy, update_profile_tags,
+  update_profile_url, update_wayfern_config,
 };
 
 use browser_version_manager::{
@@ -101,6 +104,11 @@ use app_auto_updater::{
 };
 
 use profile_importer::{detect_existing_profiles, import_browser_profile};
+
+use odoo::commands::{
+  create_odoo_profile, delete_odoo_profile, download_profile_from_odoo_s3, is_odoo_logged_in,
+  list_odoo_profiles, odoo_login, odoo_logout, update_odoo_profile, upload_profile_to_odoo_s3,
+};
 
 use group_manager::{
   assign_profiles_to_group, create_profile_group, delete_profile_group, delete_selected_profiles,
@@ -384,6 +392,11 @@ async fn is_geoip_database_available() -> Result<bool, String> {
 }
 
 #[tauri::command]
+async fn check_camoufox_js_available() -> bool {
+  crate::camoufox::external_binary::get_external_camoufox_path().is_some()
+}
+
+#[tauri::command]
 async fn get_all_traffic_snapshots() -> Result<Vec<crate::traffic_stats::TrafficSnapshot>, String> {
   // Use real-time snapshots that merge in-memory data with disk data
   Ok(crate::traffic_stats::get_all_traffic_snapshots_realtime())
@@ -636,7 +649,6 @@ pub fn run() {
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_dialog::init())
-    .plugin(tauri_plugin_macos_permissions::init())
     .setup(|app| {
       // Start the daemon for tray icon
       if let Err(e) = daemon_spawn::ensure_daemon_running() {
@@ -647,8 +659,8 @@ pub fn run() {
       #[allow(unused_variables)]
       let win_builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
         .title("Donut Browser")
-        .inner_size(800.0, 500.0)
-        .resizable(false)
+        .inner_size(1300.0, 800.0)
+        .resizable(true)
         .fullscreen(false)
         .center()
         .focused(true)
@@ -1095,6 +1107,7 @@ pub fn run() {
       clone_profile,
       check_browser_exists,
       create_browser_profile_new,
+      import_zsmkt_profiles_batch,
       list_browser_profiles,
       launch_browser_profile,
       fetch_browser_versions_with_count,
@@ -1106,6 +1119,8 @@ pub fn run() {
       update_profile_proxy,
       update_profile_tags,
       update_profile_note,
+      update_profile_url,
+      update_profile_odoo_id,
       check_browser_status,
       kill_browser_profile,
       rename_profile,
@@ -1155,6 +1170,7 @@ pub fn run() {
       assign_profiles_to_group,
       delete_selected_profiles,
       is_geoip_database_available,
+      check_camoufox_js_available,
       download_geoip_database,
       start_api_server,
       stop_api_server,
@@ -1182,6 +1198,16 @@ pub fn run() {
       stop_mcp_server,
       get_mcp_server_status,
       get_mcp_config,
+      // Odoo commands
+      odoo_login,
+      odoo_logout,
+      is_odoo_logged_in,
+      list_odoo_profiles,
+      create_odoo_profile,
+      update_odoo_profile,
+      delete_odoo_profile,
+      upload_profile_to_odoo_s3,
+      download_profile_from_odoo_s3,
       // VPN commands
       import_vpn_config,
       list_vpn_configs,

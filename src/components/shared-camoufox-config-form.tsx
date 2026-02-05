@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { HiSparkles } from "react-icons/hi2";
 import MultipleSelector, { type Option } from "@/components/multiple-selector";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   CamoufoxConfig,
@@ -32,8 +34,8 @@ interface SharedCamoufoxConfigFormProps {
 }
 
 // Determine if fingerprint editing should be disabled
-const isFingerprintEditingDisabled = (config: CamoufoxConfig): boolean => {
-  return config.randomize_fingerprint_on_launch === true;
+const isFingerprintEditingDisabled = (_config: CamoufoxConfig): boolean => {
+  return false;
 };
 
 // Detect the current operating system
@@ -119,9 +121,7 @@ export function SharedCamoufoxConfigForm({
   readOnly = false,
   browserType = "camoufox",
 }: SharedCamoufoxConfigFormProps) {
-  const [activeTab, setActiveTab] = useState(
-    forceAdvanced ? "manual" : "automatic",
-  );
+  const { t } = useTranslation();
   const [fingerprintConfig, setFingerprintConfig] =
     useState<CamoufoxFingerprintConfig>({});
   const [currentOS] = useState<CamoufoxOS>(getCurrentOS);
@@ -200,14 +200,60 @@ export function SharedCamoufoxConfigForm({
   };
 
   // Determine if automatic location configuration is enabled
-  const isAutoLocationEnabled = config.geoip !== false;
+  const _isAutoLocationEnabled = config.geoip !== false;
 
   // Handle automatic location configuration toggle
-  const handleAutoLocationToggle = (enabled: boolean) => {
+  const _handleAutoLocationToggle = (enabled: boolean) => {
     if (enabled) {
       onConfigChange("geoip", true);
     } else {
       onConfigChange("geoip", false);
+    }
+  };
+
+  // Generate random user agent based on OS
+  const generateRandomUserAgent = () => {
+    const os = config.os || currentOS;
+
+    // Random Chrome versions between 120-131
+    const chromeVersion = Math.floor(Math.random() * 12) + 120;
+    const chromePatch = Math.floor(Math.random() * 1000);
+
+    // Random OS versions
+    const windowsVersions = ["10.0", "11.0"];
+    const macVersions = ["10_15_7", "11_0_0", "12_0_0", "13_0_0", "14_0_0"];
+
+    let userAgent = "";
+    let platform = "";
+
+    if (os === "windows") {
+      const winVersion =
+        windowsVersions[Math.floor(Math.random() * windowsVersions.length)];
+      userAgent = `Mozilla/5.0 (Windows NT ${winVersion}; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.${chromePatch} Safari/537.36`;
+      platform = "Win32";
+    } else if (os === "macos") {
+      const macVersion =
+        macVersions[Math.floor(Math.random() * macVersions.length)];
+      userAgent = `Mozilla/5.0 (Macintosh; Intel Mac OS X ${macVersion}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.${chromePatch} Safari/537.36`;
+      platform = "MacIntel";
+    } else {
+      // Linux
+      userAgent = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.${chromePatch} Safari/537.36`;
+      platform = "Linux x86_64";
+    }
+
+    // Update both fields at once to avoid state update race condition
+    const newConfig = {
+      ...fingerprintConfig,
+      "navigator.userAgent": userAgent,
+      "navigator.platform": platform,
+    };
+    setFingerprintConfig(newConfig);
+    try {
+      const jsonString = JSON.stringify(newConfig);
+      onConfigChange("fingerprint", jsonString);
+    } catch (error) {
+      console.error("Failed to serialize fingerprint config:", error);
     }
   };
 
@@ -217,14 +263,18 @@ export function SharedCamoufoxConfigForm({
     <div className="space-y-6">
       {/* Operating System Selection */}
       <div className="space-y-3">
-        <Label>Operating System Fingerprint</Label>
+        <Label>{t("createProfile.fingerprint.osSelection.label")}</Label>
         <Select
           value={selectedOS}
           onValueChange={(value: CamoufoxOS) => onConfigChange("os", value)}
           disabled={readOnly}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select operating system" />
+            <SelectValue
+              placeholder={t(
+                "createProfile.fingerprint.osSelection.placeholder",
+              )}
+            />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="windows">{osLabels.windows}</SelectItem>
@@ -235,50 +285,24 @@ export function SharedCamoufoxConfigForm({
         {isOSDifferent && (
           <Alert className="border-yellow-500/50 bg-yellow-500/10">
             <AlertDescription className="text-yellow-600 dark:text-yellow-400">
-              ⚠️ Warning: Selecting an OS different from your current system (
-              {osLabels[currentOS]}) increases the risk of detection. Websites
-              can detect mismatches between your fingerprint and actual system
-              behavior.
+              {t("createProfile.fingerprint.warnings.osDifferent", {
+                currentOS: osLabels[currentOS],
+              })}
             </AlertDescription>
           </Alert>
         )}
       </div>
 
-      {/* Randomize Fingerprint Option */}
-      <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="randomize-fingerprint"
-            checked={config.randomize_fingerprint_on_launch || false}
-            onCheckedChange={(checked) =>
-              onConfigChange("randomize_fingerprint_on_launch", checked)
-            }
-            disabled={readOnly}
-          />
-          <Label htmlFor="randomize-fingerprint" className="font-medium">
-            Generate random fingerprint on every launch
-          </Label>
-        </div>
-        <p className="text-sm text-muted-foreground ml-6">
-          When enabled, a new fingerprint will be generated each time the
-          browser is launched.
-        </p>
-      </div>
-
       {isEditingDisabled ? (
         <Alert>
           <AlertDescription>
-            {readOnly
-              ? "Fingerprint editing is disabled because the profile is currently running. Stop the profile to make changes."
-              : "Fingerprint editing is disabled because random fingerprint generation is enabled. Disable the option above to manually edit the fingerprint configuration."}
+            {t("createProfile.fingerprint.warnings.editingDisabled")}
           </AlertDescription>
         </Alert>
       ) : (
         <Alert>
           <AlertDescription>
-            ⚠️ Warning: Only edit these parameters if you know what you're doing.
-            Incorrect values may break websites, make them detect you, and lead
-            to hard-to-debug bugs.{" "}
+            {t("createProfile.fingerprint.warnings.advancedWarning")}
           </AlertDescription>
         </Alert>
       )}
@@ -287,7 +311,7 @@ export function SharedCamoufoxConfigForm({
         {/* Blocking Options - Only available for Camoufox */}
         {browserType === "camoufox" && (
           <div className="space-y-3">
-            <Label>Blocking Options</Label>
+            <Label>{t("createProfile.fingerprint.blocking.title")}</Label>
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -297,7 +321,9 @@ export function SharedCamoufoxConfigForm({
                     onConfigChange("block_images", checked)
                   }
                 />
-                <Label htmlFor="block-images">Block Images</Label>
+                <Label htmlFor="block-images">
+                  {t("createProfile.fingerprint.blocking.blockImages")}
+                </Label>
               </div>
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -307,7 +333,9 @@ export function SharedCamoufoxConfigForm({
                     onConfigChange("block_webrtc", checked)
                   }
                 />
-                <Label htmlFor="block-webrtc">Block WebRTC</Label>
+                <Label htmlFor="block-webrtc">
+                  {t("createProfile.fingerprint.blocking.blockWebRTC")}
+                </Label>
               </div>
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -317,7 +345,9 @@ export function SharedCamoufoxConfigForm({
                     onConfigChange("block_webgl", checked)
                   }
                 />
-                <Label htmlFor="block-webgl">Block WebGL</Label>
+                <Label htmlFor="block-webgl">
+                  {t("createProfile.fingerprint.blocking.blockWebGL")}
+                </Label>
               </div>
             </div>
           </div>
@@ -325,10 +355,25 @@ export function SharedCamoufoxConfigForm({
 
         {/* Navigator Properties */}
         <div className="space-y-3">
-          <Label>Navigator Properties</Label>
+          <div className="flex items-center justify-between">
+            <Label>{t("createProfile.fingerprint.navigator.title")}</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={generateRandomUserAgent}
+              disabled={readOnly}
+              className="gap-2"
+            >
+              <HiSparkles className="w-4 h-4" />
+              {t("createProfile.fingerprint.generateRandom")}
+            </Button>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="user-agent">User Agent</Label>
+              <Label htmlFor="user-agent">
+                {t("createProfile.fingerprint.userAgentPlatform.userAgent")}
+              </Label>
               <Input
                 id="user-agent"
                 value={fingerprintConfig["navigator.userAgent"] || ""}
@@ -338,11 +383,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="Mozilla/5.0..."
+                placeholder={t(
+                  "createProfile.fingerprint.userAgentPlatform.userAgentPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="platform">Platform</Label>
+              <Label htmlFor="platform">
+                {t("createProfile.fingerprint.userAgentPlatform.platform")}
+              </Label>
               <Input
                 id="platform"
                 value={fingerprintConfig["navigator.platform"] || ""}
@@ -352,11 +401,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., MacIntel, Win32"
+                placeholder={t(
+                  "createProfile.fingerprint.userAgentPlatform.platformPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="app-version">App Version</Label>
+              <Label htmlFor="app-version">
+                {t("createProfile.fingerprint.navigator.appVersion")}
+              </Label>
               <Input
                 id="app-version"
                 value={fingerprintConfig["navigator.appVersion"] || ""}
@@ -366,11 +419,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., 5.0 (Macintosh)"
+                placeholder={t(
+                  "createProfile.fingerprint.navigator.appVersionPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="oscpu">OS CPU</Label>
+              <Label htmlFor="oscpu">
+                {t("createProfile.fingerprint.navigator.oscpu")}
+              </Label>
               <Input
                 id="oscpu"
                 value={fingerprintConfig["navigator.oscpu"] || ""}
@@ -380,11 +437,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., Intel Mac OS X 10.15"
+                placeholder={t(
+                  "createProfile.fingerprint.navigator.oscpuPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="hardware-concurrency">Hardware Concurrency</Label>
+              <Label htmlFor="hardware-concurrency">
+                {t("createProfile.fingerprint.hardware.concurrency")}
+              </Label>
               <Input
                 id="hardware-concurrency"
                 type="number"
@@ -395,11 +456,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 8"
+                placeholder={t(
+                  "createProfile.fingerprint.hardware.concurrencyPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="max-touch-points">Max Touch Points</Label>
+              <Label htmlFor="max-touch-points">
+                {t("createProfile.fingerprint.hardware.maxTouchPoints")}
+              </Label>
               <Input
                 id="max-touch-points"
                 type="number"
@@ -410,11 +475,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 0"
+                placeholder={t(
+                  "createProfile.fingerprint.hardware.maxTouchPointsPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="do-not-track">Do Not Track</Label>
+              <Label htmlFor="do-not-track">
+                {t("createProfile.fingerprint.language.doNotTrack")}
+              </Label>
               <Select
                 value={fingerprintConfig["navigator.doNotTrack"] || ""}
                 onValueChange={(value) =>
@@ -425,17 +494,35 @@ export function SharedCamoufoxConfigForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select DNT value" />
+                  <SelectValue
+                    placeholder={t(
+                      "createProfile.fingerprint.language.doNotTrackPlaceholder",
+                    )}
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0">0 (tracking allowed)</SelectItem>
-                  <SelectItem value="1">1 (tracking not allowed)</SelectItem>
-                  <SelectItem value="unspecified">unspecified</SelectItem>
+                  <SelectItem value="0">
+                    {t(
+                      "createProfile.fingerprint.language.doNotTrackOptions.allowed",
+                    )}
+                  </SelectItem>
+                  <SelectItem value="1">
+                    {t(
+                      "createProfile.fingerprint.language.doNotTrackOptions.notAllowed",
+                    )}
+                  </SelectItem>
+                  <SelectItem value="unspecified">
+                    {t(
+                      "createProfile.fingerprint.language.doNotTrackOptions.unspecified",
+                    )}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="language">Language</Label>
+              <Label htmlFor="language">
+                {t("createProfile.fingerprint.language.primary")}
+              </Label>
               <Input
                 id="language"
                 value={fingerprintConfig["navigator.language"] || ""}
@@ -445,7 +532,9 @@ export function SharedCamoufoxConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., en-US"
+                placeholder={t(
+                  "createProfile.fingerprint.language.primaryPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -453,10 +542,12 @@ export function SharedCamoufoxConfigForm({
 
         {/* Screen Properties */}
         <div className="space-y-3">
-          <Label>Screen Properties</Label>
+          <Label>{t("createProfile.fingerprint.screen.title")}</Label>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="screen-width">Screen Width</Label>
+              <Label htmlFor="screen-width">
+                {t("createProfile.fingerprint.screen.width")}
+              </Label>
               <Input
                 id="screen-width"
                 type="number"
@@ -467,11 +558,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1920"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.widthPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="screen-height">Screen Height</Label>
+              <Label htmlFor="screen-height">
+                {t("createProfile.fingerprint.screen.height")}
+              </Label>
               <Input
                 id="screen-height"
                 type="number"
@@ -482,11 +577,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1080"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.heightPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="avail-width">Available Width</Label>
+              <Label htmlFor="avail-width">
+                {t("createProfile.fingerprint.screen.availWidth")}
+              </Label>
               <Input
                 id="avail-width"
                 type="number"
@@ -497,11 +596,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1920"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.availWidthPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="avail-height">Available Height</Label>
+              <Label htmlFor="avail-height">
+                {t("createProfile.fingerprint.screen.availHeight")}
+              </Label>
               <Input
                 id="avail-height"
                 type="number"
@@ -512,11 +615,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1055"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.availHeightPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="color-depth">Color Depth</Label>
+              <Label htmlFor="color-depth">
+                {t("createProfile.fingerprint.screen.colorDepth")}
+              </Label>
               <Input
                 id="color-depth"
                 type="number"
@@ -527,11 +634,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 30"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.colorDepthPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pixel-depth">Pixel Depth</Label>
+              <Label htmlFor="pixel-depth">
+                {t("createProfile.fingerprint.screen.pixelRatio")}
+              </Label>
               <Input
                 id="pixel-depth"
                 type="number"
@@ -542,7 +653,9 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 30"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.pixelRatioPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -550,10 +663,12 @@ export function SharedCamoufoxConfigForm({
 
         {/* Window Properties */}
         <div className="space-y-3">
-          <Label>Window Properties</Label>
+          <Label>{t("createProfile.fingerprint.window.title")}</Label>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="outer-width">Outer Width</Label>
+              <Label htmlFor="outer-width">
+                {t("createProfile.fingerprint.window.outerWidth")}
+              </Label>
               <Input
                 id="outer-width"
                 type="number"
@@ -564,11 +679,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1512"
+                placeholder={t(
+                  "createProfile.fingerprint.window.outerWidthPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="outer-height">Outer Height</Label>
+              <Label htmlFor="outer-height">
+                {t("createProfile.fingerprint.window.outerHeight")}
+              </Label>
               <Input
                 id="outer-height"
                 type="number"
@@ -579,11 +698,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 886"
+                placeholder={t(
+                  "createProfile.fingerprint.window.outerHeightPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="inner-width">Inner Width</Label>
+              <Label htmlFor="inner-width">
+                {t("createProfile.fingerprint.window.innerWidth")}
+              </Label>
               <Input
                 id="inner-width"
                 type="number"
@@ -594,11 +717,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1512"
+                placeholder={t(
+                  "createProfile.fingerprint.window.innerWidthPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="inner-height">Inner Height</Label>
+              <Label htmlFor="inner-height">
+                {t("createProfile.fingerprint.window.innerHeight")}
+              </Label>
               <Input
                 id="inner-height"
                 type="number"
@@ -609,11 +736,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 886"
+                placeholder={t(
+                  "createProfile.fingerprint.window.innerHeightPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="screen-x">Screen X</Label>
+              <Label htmlFor="screen-x">
+                {t("createProfile.fingerprint.window.screenX")}
+              </Label>
               <Input
                 id="screen-x"
                 type="number"
@@ -624,11 +755,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 0"
+                placeholder={t(
+                  "createProfile.fingerprint.window.screenXPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="screen-y">Screen Y</Label>
+              <Label htmlFor="screen-y">
+                {t("createProfile.fingerprint.window.screenY")}
+              </Label>
               <Input
                 id="screen-y"
                 type="number"
@@ -639,7 +774,9 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 0"
+                placeholder={t(
+                  "createProfile.fingerprint.window.screenYPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -647,10 +784,12 @@ export function SharedCamoufoxConfigForm({
 
         {/* Geolocation */}
         <div className="space-y-3">
-          <Label>Geolocation</Label>
+          <Label>{t("createProfile.fingerprint.geolocation.title")}</Label>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="latitude">Latitude</Label>
+              <Label htmlFor="latitude">
+                {t("createProfile.fingerprint.timezone.latitude")}
+              </Label>
               <Input
                 id="latitude"
                 type="number"
@@ -662,11 +801,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseFloat(e.target.value) : undefined,
                   )
                 }
-                placeholder="e.g., 41.0019"
+                placeholder={t(
+                  "createProfile.fingerprint.timezone.latitudePlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="longitude">Longitude</Label>
+              <Label htmlFor="longitude">
+                {t("createProfile.fingerprint.timezone.longitude")}
+              </Label>
               <Input
                 id="longitude"
                 type="number"
@@ -678,11 +821,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value ? parseFloat(e.target.value) : undefined,
                   )
                 }
-                placeholder="e.g., 28.9645"
+                placeholder={t(
+                  "createProfile.fingerprint.timezone.longitudePlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="timezone">Timezone</Label>
+              <Label htmlFor="timezone">
+                {t("createProfile.fingerprint.timezone.timezone")}
+              </Label>
               <Input
                 id="timezone"
                 type="text"
@@ -693,7 +840,9 @@ export function SharedCamoufoxConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., America/New_York"
+                placeholder={t(
+                  "createProfile.fingerprint.timezone.timezonePlaceholder",
+                )}
               />
             </div>
           </div>
@@ -701,10 +850,12 @@ export function SharedCamoufoxConfigForm({
 
         {/* Locale */}
         <div className="space-y-3">
-          <Label>Locale</Label>
+          <Label>{t("createProfile.fingerprint.locale.title")}</Label>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="locale-language">Language</Label>
+              <Label htmlFor="locale-language">
+                {t("createProfile.fingerprint.locale.language")}
+              </Label>
               <Input
                 id="locale-language"
                 value={fingerprintConfig["locale:language"] || ""}
@@ -714,11 +865,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., tr"
+                placeholder={t(
+                  "createProfile.fingerprint.locale.languagePlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="locale-region">Region</Label>
+              <Label htmlFor="locale-region">
+                {t("createProfile.fingerprint.locale.region")}
+              </Label>
               <Input
                 id="locale-region"
                 value={fingerprintConfig["locale:region"] || ""}
@@ -728,11 +883,15 @@ export function SharedCamoufoxConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., TR"
+                placeholder={t(
+                  "createProfile.fingerprint.locale.regionPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="locale-script">Script</Label>
+              <Label htmlFor="locale-script">
+                {t("createProfile.fingerprint.locale.script")}
+              </Label>
               <Input
                 id="locale-script"
                 value={fingerprintConfig["locale:script"] || ""}
@@ -742,7 +901,9 @@ export function SharedCamoufoxConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., Latn"
+                placeholder={t(
+                  "createProfile.fingerprint.locale.scriptPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -959,181 +1120,5 @@ export function SharedCamoufoxConfigForm({
     </div>
   );
 
-  return (
-    <div className={`space-y-6 ${className}`}>
-      {forceAdvanced ? (
-        // Advanced mode only (for editing)
-        renderAdvancedForm()
-      ) : (
-        <Tabs
-          value={activeTab}
-          onValueChange={readOnly ? undefined : setActiveTab}
-          className="w-full"
-        >
-          <TabsList className="grid grid-cols-2 w-full">
-            <TabsTrigger value="automatic" disabled={readOnly}>
-              Automatic
-            </TabsTrigger>
-            <TabsTrigger value="manual" disabled={readOnly}>
-              Manual
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="automatic" className="space-y-6">
-            {/* Operating System Selection */}
-            <div className="mt-4 space-y-3">
-              <Label>Operating System Fingerprint</Label>
-              <Select
-                value={selectedOS}
-                onValueChange={(value: CamoufoxOS) =>
-                  onConfigChange("os", value)
-                }
-                disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select operating system" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="windows">{osLabels.windows}</SelectItem>
-                  <SelectItem value="macos">{osLabels.macos}</SelectItem>
-                  <SelectItem value="linux">{osLabels.linux}</SelectItem>
-                </SelectContent>
-              </Select>
-              {isOSDifferent && (
-                <Alert className="border-yellow-500/50 bg-yellow-500/10">
-                  <AlertDescription className="text-yellow-600 dark:text-yellow-400">
-                    ⚠️ Warning: Selecting an OS different from your current
-                    system ({osLabels[currentOS]}) increases the risk of
-                    detection. Websites with advanced protections can detect
-                    mismatches between your fingerprint and actual system
-                    behavior.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-
-            {/* Randomize Fingerprint Option */}
-            <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="randomize-fingerprint-auto"
-                  checked={config.randomize_fingerprint_on_launch || false}
-                  onCheckedChange={(checked) =>
-                    onConfigChange("randomize_fingerprint_on_launch", checked)
-                  }
-                  disabled={readOnly}
-                />
-                <Label
-                  htmlFor="randomize-fingerprint-auto"
-                  className="font-medium"
-                >
-                  Generate random fingerprint on every launch
-                </Label>
-              </div>
-              <p className="text-sm text-muted-foreground ml-6">
-                When enabled, a new fingerprint will be generated each time the
-                browser is launched. The generated fingerprint is saved for
-                reference.
-              </p>
-            </div>
-
-            {/* Automatic Location Configuration */}
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="auto-location"
-                  checked={isAutoLocationEnabled}
-                  onCheckedChange={handleAutoLocationToggle}
-                  disabled={isEditingDisabled}
-                />
-                <Label htmlFor="auto-location">
-                  Automatically configure location information based on proxy
-                  configuration or your connection if no proxy provided
-                </Label>
-              </div>
-            </div>
-
-            {/* Screen Resolution */}
-            <fieldset disabled={isEditingDisabled} className="space-y-3">
-              <Label>Screen Resolution</Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="screen-max-width">Max Width</Label>
-                  <Input
-                    id="screen-max-width"
-                    type="number"
-                    value={config.screen_max_width || ""}
-                    onChange={(e) =>
-                      onConfigChange(
-                        "screen_max_width",
-                        e.target.value
-                          ? parseInt(e.target.value, 10)
-                          : undefined,
-                      )
-                    }
-                    placeholder="e.g., 1920"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="screen-max-height">Max Height</Label>
-                  <Input
-                    id="screen-max-height"
-                    type="number"
-                    value={config.screen_max_height || ""}
-                    onChange={(e) =>
-                      onConfigChange(
-                        "screen_max_height",
-                        e.target.value
-                          ? parseInt(e.target.value, 10)
-                          : undefined,
-                      )
-                    }
-                    placeholder="e.g., 1080"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="screen-min-width">Min Width</Label>
-                  <Input
-                    id="screen-min-width"
-                    type="number"
-                    value={config.screen_min_width || ""}
-                    onChange={(e) =>
-                      onConfigChange(
-                        "screen_min_width",
-                        e.target.value
-                          ? parseInt(e.target.value, 10)
-                          : undefined,
-                      )
-                    }
-                    placeholder="e.g., 800"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="screen-min-height">Min Height</Label>
-                  <Input
-                    id="screen-min-height"
-                    type="number"
-                    value={config.screen_min_height || ""}
-                    onChange={(e) =>
-                      onConfigChange(
-                        "screen_min_height",
-                        e.target.value
-                          ? parseInt(e.target.value, 10)
-                          : undefined,
-                      )
-                    }
-                    placeholder="e.g., 600"
-                  />
-                </div>
-              </div>
-            </fieldset>
-          </TabsContent>
-
-          <TabsContent value="manual" className="space-y-6">
-            {renderAdvancedForm()}
-          </TabsContent>
-        </Tabs>
-      )}
-    </div>
-  );
+  return <div className={`space-y-6 ${className}`}>{renderAdvancedForm()}</div>;
 }

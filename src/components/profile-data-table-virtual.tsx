@@ -4,12 +4,12 @@ import {
   type ColumnDef,
   flexRender,
   getCoreRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   type RowSelectionState,
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { format } from "date-fns";
@@ -81,13 +81,6 @@ interface ProfilesDataTableProps {
   onDownloadFromOdoo?: (profile: BrowserProfile) => Promise<void>;
   onImportCloudProfile?: (profile: any) => Promise<void>;
   uploadingProfiles?: Set<string>;
-
-  // Pagination
-  currentPage?: number;
-  totalPages?: number;
-  onPageChange?: (page: number) => void;
-  pageSize?: number;
-  onPageSizeChange?: (size: number) => void;
 }
 
 interface TableMeta {
@@ -147,7 +140,7 @@ interface TableMeta {
   uploadingProfiles: Set<string>;
 }
 
-export function ProfilesDataTable({
+export function ProfilesDataTableVirtual({
   profiles,
   onLaunchProfile,
   onKillProfile,
@@ -165,11 +158,6 @@ export function ProfilesDataTable({
   onDownloadFromOdoo,
   onImportCloudProfile,
   uploadingProfiles = new Set(),
-  currentPage = 1,
-  totalPages = 1,
-  onPageChange,
-  pageSize = 50,
-  onPageSizeChange,
 }: ProfilesDataTableProps) {
   const { t } = useTranslation();
   const { isLoggedIn } = useAuth();
@@ -810,6 +798,7 @@ export function ProfilesDataTable({
           const hasProfileUrl =
             profile.profile_url && profile.profile_url.trim() !== "";
           const localPath =
+            profile.absolute_path ||
             profile.note?.match(/original path: (.*)\)/)?.[1] ||
             (hasProfileUrl ? "Data từ Cloud" : "—");
 
@@ -916,22 +905,18 @@ export function ProfilesDataTable({
                     }
                     profileId={profile.id}
                     checkingProfileId={meta.checkingProfileId}
-                    cachedResult={
-                      meta.proxyCheckResults[
-                        odooProxy ? "temp-odoo" : profile.proxy_id!
-                      ]
-                    }
+                    cachedResult={meta.proxyCheckResults[profile.id]}
                     setCheckingProfileId={setCheckingProfileId}
                     onCheckComplete={(result) => {
                       setProxyCheckResults((prev) => ({
                         ...prev,
-                        [odooProxy ? "temp-odoo" : profile.proxy_id!]: result,
+                        [profile.id]: result,
                       }));
                     }}
                     onCheckFailed={(result) => {
                       setProxyCheckResults((prev) => ({
                         ...prev,
-                        [odooProxy ? "temp-odoo" : profile.proxy_id!]: result,
+                        [profile.id]: result,
                       }));
                     }}
                   />
@@ -1025,37 +1010,57 @@ export function ProfilesDataTable({
     ],
     [],
   );
+  const [statsFilter, setStatsFilter] = React.useState<
+    "all" | "local" | "synced"
+  >("all");
+
+  const { localCount, syncedCount, filteredData } = React.useMemo(() => {
+    const local = profiles.filter((p) => !p.odoo_id);
+    const synced = profiles.filter((p) => !!p.odoo_id);
+
+    let data = profiles;
+    if (statsFilter === "local") data = local;
+    if (statsFilter === "synced") data = synced;
+
+    return {
+      localCount: local.length,
+      syncedCount: synced.length,
+      filteredData: data,
+    };
+  }, [profiles, statsFilter]);
 
   const table = useReactTable({
-    data: profiles,
+    data: filteredData,
     columns,
     state: {
       sorting,
       rowSelection,
-      pagination: {
-        pageIndex: currentPage - 1,
-        pageSize: pageSize,
-      },
     },
     onSortingChange: handleSortingChange,
     onRowSelectionChange: handleRowSelectionChange,
-    onPaginationChange: (updater) => {
-      if (typeof updater === "function") {
-        const newState = updater({ pageIndex: currentPage - 1, pageSize });
-        onPageChange?.(newState.pageIndex + 1);
-        onPageSizeChange?.(newState.pageSize);
-      }
-    },
     getSortedRowModel: getSortedRowModel(),
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => row.id,
     meta: tableMeta,
   });
 
+  const { rows } = table.getRowModel();
+
+  // Virtual scroll
+  const parentRef = React.useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 52, // Row height estimate
+    overscan: 10,
+  });
+
+  const virtualRows = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+
   return (
     <div className="flex flex-col h-full border rounded-md overflow-hidden bg-background">
-      <div className="flex-1 overflow-auto relative">
+      <div ref={parentRef} className="flex-1 overflow-auto relative">
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
             {table.getHeaderGroups().map((hg) => (
@@ -1069,45 +1074,79 @@ export function ProfilesDataTable({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} className="hover:bg-accent/50">
-                {row.getVisibleCells().map((c) => (
-                  <TableCell key={c.id}>
-                    {flexRender(c.column.columnDef.cell, c.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
+            {/* Spacer for virtual scroll */}
+            {virtualRows.length > 0 && (
+              <tr style={{ height: virtualRows[0]?.start || 0 }} />
+            )}
+            {virtualRows.map((virtualRow) => {
+              const row = rows[virtualRow.index];
+              return (
+                <TableRow
+                  key={row.id}
+                  className="hover:bg-accent/50"
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                >
+                  {row.getVisibleCells().map((c) => (
+                    <TableCell key={c.id}>
+                      {flexRender(c.column.columnDef.cell, c.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              );
+            })}
+            {/* Bottom spacer */}
+            {virtualRows.length > 0 && (
+              <tr
+                style={{
+                  height:
+                    totalSize - (virtualRows[virtualRows.length - 1]?.end || 0),
+                }}
+              />
+            )}
           </TableBody>
         </Table>
       </div>
-      <div className="p-4 border-t flex items-center justify-between text-sm text-muted-foreground">
-        <div>
-          Hiển thị {profiles.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}{" "}
-          - {Math.min(currentPage * pageSize, profiles.length)} trong số{" "}
-          {profiles.length} profile
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onPageChange?.(currentPage - 1)}
-            disabled={currentPage === 1}
-          >
-            Trước
-          </Button>
-          <span className="px-4 py-1 border rounded">
-            {currentPage} / {totalPages || 1}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onPageChange?.(currentPage + 1)}
-            disabled={currentPage === totalPages || totalPages === 0}
-          >
-            Sau
-          </Button>
-        </div>
+      <div className="p-2 border-t flex items-center gap-2 bg-muted/30">
+        <Button
+          variant={statsFilter === "all" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatsFilter("all")}
+          className={
+            statsFilter === "all"
+              ? "bg-orange-500 hover:bg-orange-600 text-white border-0"
+              : "bg-background"
+          }
+        >
+          <span className="font-bold mr-1">{profiles.length}</span>
+          Tổng số Profile
+        </Button>
+        <Button
+          variant={statsFilter === "local" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatsFilter("local")}
+          className={
+            statsFilter === "local"
+              ? "bg-orange-500 hover:bg-orange-600 text-white border-0"
+              : "bg-background"
+          }
+        >
+          <span className="font-bold mr-1">{localCount}</span>
+          Profile trên máy
+        </Button>
+        <Button
+          variant={statsFilter === "synced" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatsFilter("synced")}
+          className={
+            statsFilter === "synced"
+              ? "bg-orange-500 hover:bg-orange-600 text-white border-0"
+              : "bg-background"
+          }
+        >
+          <span className="font-bold mr-1">{syncedCount}</span>
+          Profile đã đồng bộ
+        </Button>
       </div>
       <DeleteConfirmationDialog
         isOpen={profileToDelete !== null}

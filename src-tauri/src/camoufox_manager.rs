@@ -212,9 +212,45 @@ impl CamoufoxManager {
     };
 
     // Parse the fingerprint config JSON
-    let fingerprint_config: HashMap<String, serde_json::Value> =
+    let mut fingerprint_config: HashMap<String, serde_json::Value> =
       serde_json::from_str(&custom_config)
         .map_err(|e| format!("Failed to parse fingerprint config: {e}"))?;
+
+    // Apply proxy settings if provided
+    if let Some(proxy_url_str) = &config.proxy {
+      log::info!("Applying proxy settings for Camoufox launch: {}", proxy_url_str);
+      if let Ok(url) = url::Url::parse(proxy_url_str) {
+        let settings = crate::browser::ProxySettings {
+          proxy_type: url.scheme().to_string(),
+          host: url.host_str().unwrap_or("127.0.0.1").to_string(),
+          port: url.port().unwrap_or(0),
+          username: if !url.username().is_empty() {
+            Some(url.username().to_string())
+          } else {
+            None
+          },
+          password: url.password().map(|p| p.to_string()),
+        };
+
+        // 1. Write to user.js so Firefox picks it up
+        if let Err(e) = crate::profile::ProfileManager::instance()
+          .apply_proxy_settings_to_profile(std::path::Path::new(profile_path), &settings, None)
+        {
+          log::warn!("Failed to apply proxy settings to Camoufox profile: {}", e);
+        }
+
+        // 2. Also inject into fingerprint_config (which becomes CAMOU_CONFIG env var)
+        // This ensures the Camoufox-specific patches can also see the proxy
+        fingerprint_config.insert("proxy.server".to_string(), serde_json::json!(settings.host));
+        fingerprint_config.insert("proxy.port".to_string(), serde_json::json!(settings.port));
+        if let Some(user) = &settings.username {
+          fingerprint_config.insert("proxy.username".to_string(), serde_json::json!(user));
+        }
+        if let Some(pass) = &settings.password {
+          fingerprint_config.insert("proxy.password".to_string(), serde_json::json!(pass));
+        }
+      }
+    }
 
     // Convert to environment variables using CAMOU_CONFIG chunking
     let env_vars = crate::camoufox::env_vars::config_to_env_vars(&fingerprint_config)

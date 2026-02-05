@@ -555,6 +555,11 @@ impl ProfileImporter {
       note: None,
       sync_enabled: false,
       last_sync: None,
+      odoo_id: None,
+      profile_url: None,
+      created_at: Some(chrono::Utc::now().timestamp() as u64),
+      odoo_proxy: None,
+      absolute_path: None,
     };
 
     // Save the profile metadata

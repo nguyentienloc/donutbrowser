@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WindowDragArea } from "@/components/window-drag-area";
 import { setupLogging } from "@/lib/logger";
+import { AuthProvider } from "@/providers/auth-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,9 +37,11 @@ export default function RootLayout({
       >
         <I18nProvider>
           <CustomThemeProvider>
-            <WindowDragArea />
-            <TooltipProvider>{children}</TooltipProvider>
-            <Toaster />
+            <AuthProvider>
+              <WindowDragArea />
+              <TooltipProvider>{children}</TooltipProvider>
+              <Toaster />
+            </AuthProvider>
           </CustomThemeProvider>
         </I18nProvider>
       </body>

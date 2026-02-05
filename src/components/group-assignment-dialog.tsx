@@ -110,15 +110,15 @@ export function GroupAssignmentDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Assign to Group</DialogTitle>
+          <DialogTitle>Thêm vào nhóm</DialogTitle>
           <DialogDescription>
-            Assign {selectedProfiles.length} selected profile(s) to a group.
+            Thêm {selectedProfiles.length} profile đã chọn vào một nhóm.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Selected Profiles:</Label>
+            <Label>Profile đã chọn:</Label>
             <div className="p-3 bg-muted rounded-md max-h-32 overflow-y-auto">
               <ul className="text-sm space-y-1">
                 {selectedProfiles.map((profileId) => {
@@ -139,19 +139,19 @@ export function GroupAssignmentDialog({
 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <Label htmlFor="group-select">Assign to Group:</Label>
+              <Label htmlFor="group-select">Chọn nhóm:</Label>
               <RippleButton
                 size="sm"
                 variant="outline"
                 className="h-7 px-2 text-xs"
                 onClick={() => setCreateDialogOpen(true)}
               >
-                <GoPlus className="mr-1 w-3 h-3" /> Create Group
+                <GoPlus className="mr-1 w-3 h-3" /> Tạo nhóm
               </RippleButton>
             </div>
             {isLoading ? (
               <div className="text-sm text-muted-foreground">
-                Loading groups...
+                Đang tải nhóm...
               </div>
             ) : (
               <Select
@@ -161,10 +161,12 @@ export function GroupAssignmentDialog({
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a group" />
+                  <SelectValue placeholder="Chọn một nhóm" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="default">Default (No Group)</SelectItem>
+                  <SelectItem value="default">
+                    Mặc định (Không thuộc nhóm)
+                  </SelectItem>
                   {groups.map((group) => (
                     <SelectItem key={group.id} value={group.id}>
                       {group.name}
@@ -188,14 +190,14 @@ export function GroupAssignmentDialog({
             onClick={onClose}
             disabled={isAssigning}
           >
-            Cancel
+            Hủy
           </RippleButton>
           <LoadingButton
             isLoading={isAssigning}
             onClick={() => void handleAssign()}
             disabled={isLoading}
           >
-            Assign
+            Thêm vào nhóm
           </LoadingButton>
         </DialogFooter>
       </DialogContent>

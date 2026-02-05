@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { HiSparkles } from "react-icons/hi2";
 import { LuLock } from "react-icons/lu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   WayfernConfig,
@@ -30,8 +32,8 @@ interface WayfernConfigFormProps {
   readOnly?: boolean;
 }
 
-const isFingerprintEditingDisabled = (config: WayfernConfig): boolean => {
-  return config.randomize_fingerprint_on_launch === true;
+const isFingerprintEditingDisabled = (_config: WayfernConfig): boolean => {
+  return false;
 };
 
 const getCurrentOS = (): WayfernOS => {
@@ -58,9 +60,7 @@ export function WayfernConfigForm({
   forceAdvanced = false,
   readOnly = false,
 }: WayfernConfigFormProps) {
-  const [activeTab, setActiveTab] = useState(
-    forceAdvanced ? "manual" : "automatic",
-  );
+  const { t } = useTranslation();
   const [fingerprintConfig, setFingerprintConfig] =
     useState<WayfernFingerprintConfig>({});
   const [currentOS] = useState<WayfernOS>(getCurrentOS);
@@ -128,13 +128,55 @@ export function WayfernConfigForm({
     }
   };
 
-  const isAutoLocationEnabled = config.geoip !== false;
+  const _isAutoLocationEnabled = config.geoip !== false;
 
-  const handleAutoLocationToggle = (enabled: boolean) => {
+  const _handleAutoLocationToggle = (enabled: boolean) => {
     if (enabled) {
       onConfigChange("geoip", true);
     } else {
       onConfigChange("geoip", false);
+    }
+  };
+
+  // Generate random user agent based on OS
+  const generateRandomUserAgent = () => {
+    const os = config.os || currentOS;
+
+    // Random Chrome versions between 120-131
+    const chromeVersion = Math.floor(Math.random() * 12) + 120;
+    const chromePatch = Math.floor(Math.random() * 1000);
+
+    // Random OS versions
+    const windowsVersions = ["10.0", "11.0"];
+    const macVersions = ["10_15_7", "11_0_0", "12_0_0", "13_0_0", "14_0_0"];
+
+    let userAgent = "";
+    let platform = "";
+
+    if (os === "windows") {
+      const winVersion =
+        windowsVersions[Math.floor(Math.random() * windowsVersions.length)];
+      userAgent = `Mozilla/5.0 (Windows NT ${winVersion}; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.${chromePatch} Safari/537.36`;
+      platform = "Win32";
+    } else if (os === "macos") {
+      const macVersion =
+        macVersions[Math.floor(Math.random() * macVersions.length)];
+      userAgent = `Mozilla/5.0 (Macintosh; Intel Mac OS X ${macVersion}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.${chromePatch} Safari/537.36`;
+      platform = "MacIntel";
+    } else {
+      // Linux, Android, iOS
+      userAgent = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.${chromePatch} Safari/537.36`;
+      platform = "Linux x86_64";
+    }
+
+    // Update both fields at once to avoid state update race condition
+    const newConfig = { ...fingerprintConfig, userAgent, platform };
+    setFingerprintConfig(newConfig);
+    try {
+      const jsonString = JSON.stringify(newConfig);
+      onConfigChange("fingerprint", jsonString);
+    } catch (error) {
+      console.error("Failed to serialize fingerprint config:", error);
     }
   };
 
@@ -144,14 +186,18 @@ export function WayfernConfigForm({
     <div className="space-y-6">
       {/* Operating System Selection */}
       <div className="space-y-3">
-        <Label>Operating System Fingerprint</Label>
+        <Label>{t("createProfile.fingerprint.osSelection.label")}</Label>
         <Select
           value={selectedOS}
           onValueChange={(value: WayfernOS) => onConfigChange("os", value)}
           disabled={readOnly}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select operating system" />
+            <SelectValue
+              placeholder={t(
+                "createProfile.fingerprint.osSelection.placeholder",
+              )}
+            />
           </SelectTrigger>
           <SelectContent>
             {(
@@ -173,39 +219,16 @@ export function WayfernConfigForm({
         </Select>
       </div>
 
-      {/* Randomize Fingerprint Option */}
-      <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="randomize-fingerprint"
-            checked={config.randomize_fingerprint_on_launch || false}
-            onCheckedChange={(checked) =>
-              onConfigChange("randomize_fingerprint_on_launch", checked)
-            }
-            disabled={readOnly}
-          />
-          <Label htmlFor="randomize-fingerprint" className="font-medium">
-            Generate random fingerprint on every launch
-          </Label>
-        </div>
-        <p className="text-sm text-muted-foreground ml-6">
-          When enabled, a new fingerprint will be generated each time the
-          browser is launched.
-        </p>
-      </div>
-
       {isEditingDisabled ? (
         <Alert>
           <AlertDescription>
-            {readOnly
-              ? "Fingerprint editing is disabled because the profile is currently running."
-              : "Fingerprint editing is disabled because random fingerprint generation is enabled."}
+            {t("createProfile.fingerprint.warnings.editingDisabled")}
           </AlertDescription>
         </Alert>
       ) : (
         <Alert>
           <AlertDescription>
-            Warning: Only edit these parameters if you know what you're doing.
+            {t("createProfile.fingerprint.warnings.advancedWarning")}
           </AlertDescription>
         </Alert>
       )}
@@ -213,10 +236,27 @@ export function WayfernConfigForm({
       <fieldset disabled={isEditingDisabled} className="space-y-6">
         {/* User Agent and Platform */}
         <div className="space-y-3">
-          <Label>User Agent & Platform</Label>
+          <div className="flex items-center justify-between">
+            <Label>
+              {t("createProfile.fingerprint.userAgentPlatform.title")}
+            </Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={generateRandomUserAgent}
+              disabled={readOnly}
+              className="gap-2"
+            >
+              <HiSparkles className="w-4 h-4" />
+              {t("createProfile.fingerprint.generateRandom")}
+            </Button>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
-              <Label htmlFor="user-agent">User Agent</Label>
+              <Label htmlFor="user-agent">
+                {t("createProfile.fingerprint.userAgentPlatform.userAgent")}
+              </Label>
               <Input
                 id="user-agent"
                 value={fingerprintConfig.userAgent || ""}
@@ -226,11 +266,15 @@ export function WayfernConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="Mozilla/5.0..."
+                placeholder={t(
+                  "createProfile.fingerprint.userAgentPlatform.userAgentPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="platform">Platform</Label>
+              <Label htmlFor="platform">
+                {t("createProfile.fingerprint.userAgentPlatform.platform")}
+              </Label>
               <Input
                 id="platform"
                 value={fingerprintConfig.platform || ""}
@@ -240,11 +284,17 @@ export function WayfernConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., Win32, MacIntel, Linux x86_64"
+                placeholder={t(
+                  "createProfile.fingerprint.userAgentPlatform.platformPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="platform-version">Platform Version</Label>
+              <Label htmlFor="platform-version">
+                {t(
+                  "createProfile.fingerprint.userAgentPlatform.platformVersion",
+                )}
+              </Label>
               <Input
                 id="platform-version"
                 value={fingerprintConfig.platformVersion || ""}
@@ -254,22 +304,30 @@ export function WayfernConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., 10.0.0"
+                placeholder={t(
+                  "createProfile.fingerprint.userAgentPlatform.platformVersionPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="brand">Brand</Label>
+              <Label htmlFor="brand">
+                {t("createProfile.fingerprint.userAgentPlatform.brand")}
+              </Label>
               <Input
                 id="brand"
                 value={fingerprintConfig.brand || ""}
                 onChange={(e) =>
                   updateFingerprintConfig("brand", e.target.value || undefined)
                 }
-                placeholder="e.g., Google Chrome"
+                placeholder={t(
+                  "createProfile.fingerprint.userAgentPlatform.brandPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="brand-version">Brand Version</Label>
+              <Label htmlFor="brand-version">
+                {t("createProfile.fingerprint.userAgentPlatform.brandVersion")}
+              </Label>
               <Input
                 id="brand-version"
                 value={fingerprintConfig.brandVersion || ""}
@@ -279,7 +337,9 @@ export function WayfernConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., 143"
+                placeholder={t(
+                  "createProfile.fingerprint.userAgentPlatform.brandVersionPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -287,10 +347,12 @@ export function WayfernConfigForm({
 
         {/* Hardware Properties */}
         <div className="space-y-3">
-          <Label>Hardware Properties</Label>
+          <Label>{t("createProfile.fingerprint.hardware.title")}</Label>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="hardware-concurrency">Hardware Concurrency</Label>
+              <Label htmlFor="hardware-concurrency">
+                {t("createProfile.fingerprint.hardware.concurrency")}
+              </Label>
               <Input
                 id="hardware-concurrency"
                 type="number"
@@ -301,11 +363,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 8"
+                placeholder={t(
+                  "createProfile.fingerprint.hardware.concurrencyPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="max-touch-points">Max Touch Points</Label>
+              <Label htmlFor="max-touch-points">
+                {t("createProfile.fingerprint.hardware.maxTouchPoints")}
+              </Label>
               <Input
                 id="max-touch-points"
                 type="number"
@@ -316,11 +382,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 0"
+                placeholder={t(
+                  "createProfile.fingerprint.hardware.maxTouchPointsPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="device-memory">Device Memory (GB)</Label>
+              <Label htmlFor="device-memory">
+                {t("createProfile.fingerprint.hardware.deviceMemory")}
+              </Label>
               <Input
                 id="device-memory"
                 type="number"
@@ -331,7 +401,9 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 8"
+                placeholder={t(
+                  "createProfile.fingerprint.hardware.deviceMemoryPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -339,10 +411,12 @@ export function WayfernConfigForm({
 
         {/* Screen Properties */}
         <div className="space-y-3">
-          <Label>Screen Properties</Label>
+          <Label>{t("createProfile.fingerprint.screen.title")}</Label>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="screen-width">Screen Width</Label>
+              <Label htmlFor="screen-width">
+                {t("createProfile.fingerprint.screen.width")}
+              </Label>
               <Input
                 id="screen-width"
                 type="number"
@@ -353,11 +427,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1920"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.widthPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="screen-height">Screen Height</Label>
+              <Label htmlFor="screen-height">
+                {t("createProfile.fingerprint.screen.height")}
+              </Label>
               <Input
                 id="screen-height"
                 type="number"
@@ -368,11 +446,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1080"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.heightPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="device-pixel-ratio">Device Pixel Ratio</Label>
+              <Label htmlFor="device-pixel-ratio">
+                {t("createProfile.fingerprint.screen.pixelRatio")}
+              </Label>
               <Input
                 id="device-pixel-ratio"
                 type="number"
@@ -384,11 +466,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseFloat(e.target.value) : undefined,
                   )
                 }
-                placeholder="e.g., 1.0"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.pixelRatioPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="screen-avail-width">Available Width</Label>
+              <Label htmlFor="screen-avail-width">
+                {t("createProfile.fingerprint.screen.availWidth")}
+              </Label>
               <Input
                 id="screen-avail-width"
                 type="number"
@@ -399,11 +485,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1920"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.availWidthPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="screen-avail-height">Available Height</Label>
+              <Label htmlFor="screen-avail-height">
+                {t("createProfile.fingerprint.screen.availHeight")}
+              </Label>
               <Input
                 id="screen-avail-height"
                 type="number"
@@ -414,11 +504,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1040"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.availHeightPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="screen-color-depth">Color Depth</Label>
+              <Label htmlFor="screen-color-depth">
+                {t("createProfile.fingerprint.screen.colorDepth")}
+              </Label>
               <Input
                 id="screen-color-depth"
                 type="number"
@@ -429,7 +523,9 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 24"
+                placeholder={t(
+                  "createProfile.fingerprint.screen.colorDepthPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -437,10 +533,12 @@ export function WayfernConfigForm({
 
         {/* Window Properties */}
         <div className="space-y-3">
-          <Label>Window Properties</Label>
+          <Label>{t("createProfile.fingerprint.window.title")}</Label>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="window-outer-width">Outer Width</Label>
+              <Label htmlFor="window-outer-width">
+                {t("createProfile.fingerprint.window.outerWidth")}
+              </Label>
               <Input
                 id="window-outer-width"
                 type="number"
@@ -451,11 +549,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1920"
+                placeholder={t(
+                  "createProfile.fingerprint.window.outerWidthPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="window-outer-height">Outer Height</Label>
+              <Label htmlFor="window-outer-height">
+                {t("createProfile.fingerprint.window.outerHeight")}
+              </Label>
               <Input
                 id="window-outer-height"
                 type="number"
@@ -466,11 +568,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1040"
+                placeholder={t(
+                  "createProfile.fingerprint.window.outerHeightPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="window-inner-width">Inner Width</Label>
+              <Label htmlFor="window-inner-width">
+                {t("createProfile.fingerprint.window.innerWidth")}
+              </Label>
               <Input
                 id="window-inner-width"
                 type="number"
@@ -481,11 +587,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 1920"
+                placeholder={t(
+                  "createProfile.fingerprint.window.innerWidthPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="window-inner-height">Inner Height</Label>
+              <Label htmlFor="window-inner-height">
+                {t("createProfile.fingerprint.window.innerHeight")}
+              </Label>
               <Input
                 id="window-inner-height"
                 type="number"
@@ -496,11 +606,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 940"
+                placeholder={t(
+                  "createProfile.fingerprint.window.innerHeightPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="screen-x">Screen X</Label>
+              <Label htmlFor="screen-x">
+                {t("createProfile.fingerprint.window.screenX")}
+              </Label>
               <Input
                 id="screen-x"
                 type="number"
@@ -511,11 +625,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 0"
+                placeholder={t(
+                  "createProfile.fingerprint.window.screenXPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="screen-y">Screen Y</Label>
+              <Label htmlFor="screen-y">
+                {t("createProfile.fingerprint.window.screenY")}
+              </Label>
               <Input
                 id="screen-y"
                 type="number"
@@ -526,7 +644,9 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 0"
+                placeholder={t(
+                  "createProfile.fingerprint.window.screenYPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -534,11 +654,11 @@ export function WayfernConfigForm({
 
         {/* Language & Locale */}
         <div className="space-y-3">
-          <Label>Language & Locale</Label>
+          <Label>{t("createProfile.fingerprint.language.title")}</Label>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="language">
-                Primary Language (navigator.language)
+                {t("createProfile.fingerprint.language.primary")}
               </Label>
               <Input
                 id="language"
@@ -549,11 +669,15 @@ export function WayfernConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., en-US"
+                placeholder={t(
+                  "createProfile.fingerprint.language.primaryPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="languages">Languages (JSON array)</Label>
+              <Label htmlFor="languages">
+                {t("createProfile.fingerprint.language.languages")}
+              </Label>
               <Input
                 id="languages"
                 value={
@@ -575,11 +699,15 @@ export function WayfernConfigForm({
                     // Invalid JSON, keep current value
                   }
                 }}
-                placeholder='["en-US", "en"]'
+                placeholder={t(
+                  "createProfile.fingerprint.language.languagesPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="do-not-track">Do Not Track</Label>
+              <Label htmlFor="do-not-track">
+                {t("createProfile.fingerprint.language.doNotTrack")}
+              </Label>
               <Select
                 value={fingerprintConfig.doNotTrack || ""}
                 onValueChange={(value) =>
@@ -587,12 +715,28 @@ export function WayfernConfigForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select DNT value" />
+                  <SelectValue
+                    placeholder={t(
+                      "createProfile.fingerprint.language.doNotTrackPlaceholder",
+                    )}
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0">0 (tracking allowed)</SelectItem>
-                  <SelectItem value="1">1 (tracking not allowed)</SelectItem>
-                  <SelectItem value="unspecified">unspecified</SelectItem>
+                  <SelectItem value="0">
+                    {t(
+                      "createProfile.fingerprint.language.doNotTrackOptions.allowed",
+                    )}
+                  </SelectItem>
+                  <SelectItem value="1">
+                    {t(
+                      "createProfile.fingerprint.language.doNotTrackOptions.notAllowed",
+                    )}
+                  </SelectItem>
+                  <SelectItem value="unspecified">
+                    {t(
+                      "createProfile.fingerprint.language.doNotTrackOptions.unspecified",
+                    )}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -601,13 +745,15 @@ export function WayfernConfigForm({
 
         {/* Timezone and Geolocation */}
         <div className="space-y-3">
-          <Label>Timezone & Geolocation</Label>
+          <Label>{t("createProfile.fingerprint.timezone.title")}</Label>
           <p className="text-sm text-muted-foreground">
-            These values override the browser's timezone and geolocation APIs.
+            {t("createProfile.fingerprint.timezone.description")}
           </p>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="timezone">Timezone (IANA)</Label>
+              <Label htmlFor="timezone">
+                {t("createProfile.fingerprint.timezone.timezone")}
+              </Label>
               <Input
                 id="timezone"
                 value={fingerprintConfig.timezone || ""}
@@ -617,11 +763,15 @@ export function WayfernConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., America/New_York"
+                placeholder={t(
+                  "createProfile.fingerprint.timezone.timezonePlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="timezone-offset">Offset (minutes from UTC)</Label>
+              <Label htmlFor="timezone-offset">
+                {t("createProfile.fingerprint.timezone.offset")}
+              </Label>
               <Input
                 id="timezone-offset"
                 type="number"
@@ -632,11 +782,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 300 for EST (UTC-5)"
+                placeholder={t(
+                  "createProfile.fingerprint.timezone.offsetPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="latitude">Latitude</Label>
+              <Label htmlFor="latitude">
+                {t("createProfile.fingerprint.timezone.latitude")}
+              </Label>
               <Input
                 id="latitude"
                 type="number"
@@ -648,11 +802,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseFloat(e.target.value) : undefined,
                   )
                 }
-                placeholder="e.g., 40.7128"
+                placeholder={t(
+                  "createProfile.fingerprint.timezone.latitudePlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="longitude">Longitude</Label>
+              <Label htmlFor="longitude">
+                {t("createProfile.fingerprint.timezone.longitude")}
+              </Label>
               <Input
                 id="longitude"
                 type="number"
@@ -664,11 +822,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseFloat(e.target.value) : undefined,
                   )
                 }
-                placeholder="e.g., -74.0060"
+                placeholder={t(
+                  "createProfile.fingerprint.timezone.longitudePlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="accuracy">Accuracy (meters)</Label>
+              <Label htmlFor="accuracy">
+                {t("createProfile.fingerprint.timezone.accuracy")}
+              </Label>
               <Input
                 id="accuracy"
                 type="number"
@@ -679,7 +841,9 @@ export function WayfernConfigForm({
                     e.target.value ? parseFloat(e.target.value) : undefined,
                   )
                 }
-                placeholder="e.g., 100"
+                placeholder={t(
+                  "createProfile.fingerprint.timezone.accuracyPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -687,10 +851,12 @@ export function WayfernConfigForm({
 
         {/* WebGL Properties */}
         <div className="space-y-3">
-          <Label>WebGL Properties</Label>
+          <Label>{t("createProfile.fingerprint.webgl.title")}</Label>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="webgl-vendor">WebGL Vendor</Label>
+              <Label htmlFor="webgl-vendor">
+                {t("createProfile.fingerprint.webgl.vendor")}
+              </Label>
               <Input
                 id="webgl-vendor"
                 value={fingerprintConfig.webglVendor || ""}
@@ -700,11 +866,15 @@ export function WayfernConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., Intel"
+                placeholder={t(
+                  "createProfile.fingerprint.webgl.vendorPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="webgl-renderer">WebGL Renderer</Label>
+              <Label htmlFor="webgl-renderer">
+                {t("createProfile.fingerprint.webgl.renderer")}
+              </Label>
               <Input
                 id="webgl-renderer"
                 value={fingerprintConfig.webglRenderer || ""}
@@ -714,7 +884,9 @@ export function WayfernConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., Intel(R) HD Graphics"
+                placeholder={t(
+                  "createProfile.fingerprint.webgl.rendererPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -722,7 +894,7 @@ export function WayfernConfigForm({
 
         {/* WebGL Parameters (JSON) */}
         <div className="space-y-3">
-          <Label>WebGL Parameters (JSON)</Label>
+          <Label>{t("createProfile.fingerprint.webgl.parameters")}</Label>
           <Textarea
             value={fingerprintConfig.webglParameters || ""}
             onChange={(e) =>
@@ -731,7 +903,9 @@ export function WayfernConfigForm({
                 e.target.value || undefined,
               )
             }
-            placeholder='{"7936": "Intel", "7937": "Intel(R) HD Graphics"}'
+            placeholder={t(
+              "createProfile.fingerprint.webgl.parametersPlaceholder",
+            )}
             className="font-mono text-sm"
             rows={4}
           />
@@ -739,9 +913,11 @@ export function WayfernConfigForm({
 
         {/* Canvas Noise Seed */}
         <div className="space-y-3">
-          <Label>Canvas Fingerprint</Label>
+          <Label>{t("createProfile.fingerprint.canvas.title")}</Label>
           <div className="space-y-2">
-            <Label htmlFor="canvas-noise-seed">Canvas Noise Seed</Label>
+            <Label htmlFor="canvas-noise-seed">
+              {t("createProfile.fingerprint.canvas.noiseSeed")}
+            </Label>
             <Input
               id="canvas-noise-seed"
               value={fingerprintConfig.canvasNoiseSeed || ""}
@@ -751,24 +927,25 @@ export function WayfernConfigForm({
                   e.target.value || undefined,
                 )
               }
-              placeholder="Enter a seed string for canvas fingerprint"
+              placeholder={t(
+                "createProfile.fingerprint.canvas.noiseSeedPlaceholder",
+              )}
             />
             <p className="text-sm text-muted-foreground">
-              This seed is used to generate a consistent but unique canvas
-              fingerprint. Each profile should have a different seed.
+              {t("createProfile.fingerprint.canvas.noiseSeedDescription")}
             </p>
           </div>
         </div>
 
         {/* Fonts (JSON) */}
         <div className="space-y-3">
-          <Label>Fonts (JSON array)</Label>
+          <Label>{t("createProfile.fingerprint.fonts.title")}</Label>
           <Textarea
             value={fingerprintConfig.fonts || ""}
             onChange={(e) =>
               updateFingerprintConfig("fonts", e.target.value || undefined)
             }
-            placeholder='["Arial", "Verdana", "Times New Roman"]'
+            placeholder={t("createProfile.fingerprint.fonts.placeholder")}
             className="font-mono text-sm"
             rows={3}
           />
@@ -776,10 +953,12 @@ export function WayfernConfigForm({
 
         {/* Audio */}
         <div className="space-y-3">
-          <Label>Audio Properties</Label>
+          <Label>{t("createProfile.fingerprint.audio.title")}</Label>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="audio-sample-rate">Sample Rate</Label>
+              <Label htmlFor="audio-sample-rate">
+                {t("createProfile.fingerprint.audio.sampleRate")}
+              </Label>
               <Input
                 id="audio-sample-rate"
                 type="number"
@@ -790,11 +969,15 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 48000"
+                placeholder={t(
+                  "createProfile.fingerprint.audio.sampleRatePlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="audio-max-channel-count">Max Channel Count</Label>
+              <Label htmlFor="audio-max-channel-count">
+                {t("createProfile.fingerprint.audio.maxChannelCount")}
+              </Label>
               <Input
                 id="audio-max-channel-count"
                 type="number"
@@ -805,7 +988,9 @@ export function WayfernConfigForm({
                     e.target.value ? parseInt(e.target.value, 10) : undefined,
                   )
                 }
-                placeholder="e.g., 2"
+                placeholder={t(
+                  "createProfile.fingerprint.audio.maxChannelCountPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -813,7 +998,7 @@ export function WayfernConfigForm({
 
         {/* Battery */}
         <div className="space-y-3">
-          <Label>Battery</Label>
+          <Label>{t("createProfile.fingerprint.battery.title")}</Label>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
@@ -827,11 +1012,15 @@ export function WayfernConfigForm({
                     )
                   }
                 />
-                <Label htmlFor="battery-charging">Charging</Label>
+                <Label htmlFor="battery-charging">
+                  {t("createProfile.fingerprint.battery.charging")}
+                </Label>
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="battery-level">Level (0-1)</Label>
+              <Label htmlFor="battery-level">
+                {t("createProfile.fingerprint.battery.level")}
+              </Label>
               <Input
                 id="battery-level"
                 type="number"
@@ -845,7 +1034,9 @@ export function WayfernConfigForm({
                     e.target.value ? parseFloat(e.target.value) : undefined,
                   )
                 }
-                placeholder="e.g., 0.85"
+                placeholder={t(
+                  "createProfile.fingerprint.battery.levelPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -853,21 +1044,27 @@ export function WayfernConfigForm({
 
         {/* Vendor Info */}
         <div className="space-y-3">
-          <Label>Vendor Info</Label>
+          <Label>{t("createProfile.fingerprint.vendor.title")}</Label>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="vendor">Vendor</Label>
+              <Label htmlFor="vendor">
+                {t("createProfile.fingerprint.vendor.vendor")}
+              </Label>
               <Input
                 id="vendor"
                 value={fingerprintConfig.vendor || ""}
                 onChange={(e) =>
                   updateFingerprintConfig("vendor", e.target.value || undefined)
                 }
-                placeholder="e.g., Google Inc."
+                placeholder={t(
+                  "createProfile.fingerprint.vendor.vendorPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="vendor-sub">Vendor Sub</Label>
+              <Label htmlFor="vendor-sub">
+                {t("createProfile.fingerprint.vendor.vendorSub")}
+              </Label>
               <Input
                 id="vendor-sub"
                 value={fingerprintConfig.vendorSub || ""}
@@ -877,11 +1074,15 @@ export function WayfernConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder=""
+                placeholder={t(
+                  "createProfile.fingerprint.vendor.vendorSubPlaceholder",
+                )}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="product-sub">Product Sub</Label>
+              <Label htmlFor="product-sub">
+                {t("createProfile.fingerprint.vendor.productSub")}
+              </Label>
               <Input
                 id="product-sub"
                 value={fingerprintConfig.productSub || ""}
@@ -891,7 +1092,9 @@ export function WayfernConfigForm({
                     e.target.value || undefined,
                   )
                 }
-                placeholder="e.g., 20030107"
+                placeholder={t(
+                  "createProfile.fingerprint.vendor.productSubPlaceholder",
+                )}
               />
             </div>
           </div>
@@ -900,185 +1103,5 @@ export function WayfernConfigForm({
     </div>
   );
 
-  return (
-    <div className={`space-y-6 ${className}`}>
-      {forceAdvanced ? (
-        renderAdvancedForm()
-      ) : (
-        <Tabs
-          value={activeTab}
-          onValueChange={readOnly ? undefined : setActiveTab}
-          className="w-full"
-        >
-          <TabsList className="grid grid-cols-2 w-full">
-            <TabsTrigger value="automatic" disabled={readOnly}>
-              Automatic
-            </TabsTrigger>
-            <TabsTrigger value="manual" disabled={readOnly}>
-              Manual
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="automatic" className="space-y-6">
-            {/* Operating System Selection */}
-            <div className="mt-4 space-y-3">
-              <Label>Operating System Fingerprint</Label>
-              <Select
-                value={selectedOS}
-                onValueChange={(value: WayfernOS) =>
-                  onConfigChange("os", value)
-                }
-                disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select operating system" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(
-                    [
-                      "windows",
-                      "macos",
-                      "linux",
-                      "android",
-                      "ios",
-                    ] as WayfernOS[]
-                  ).map((os) => {
-                    const isDisabled = os !== currentOS;
-                    return (
-                      <SelectItem key={os} value={os} disabled={isDisabled}>
-                        <span className="flex items-center gap-2">
-                          {osLabels[os]}
-                          {isDisabled && (
-                            <LuLock className="w-3 h-3 text-muted-foreground" />
-                          )}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Randomize Fingerprint Option */}
-            <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="randomize-fingerprint-auto"
-                  checked={config.randomize_fingerprint_on_launch || false}
-                  onCheckedChange={(checked) =>
-                    onConfigChange("randomize_fingerprint_on_launch", checked)
-                  }
-                  disabled={readOnly}
-                />
-                <Label
-                  htmlFor="randomize-fingerprint-auto"
-                  className="font-medium"
-                >
-                  Generate random fingerprint on every launch
-                </Label>
-              </div>
-              <p className="text-sm text-muted-foreground ml-6">
-                When enabled, a new fingerprint will be generated each time the
-                browser is launched.
-              </p>
-            </div>
-
-            {/* Automatic Location Configuration */}
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="auto-location"
-                  checked={isAutoLocationEnabled}
-                  onCheckedChange={handleAutoLocationToggle}
-                  disabled={isEditingDisabled}
-                />
-                <Label htmlFor="auto-location">
-                  Automatically configure location based on proxy or connection
-                </Label>
-              </div>
-            </div>
-
-            {/* Screen Resolution */}
-            <fieldset disabled={isEditingDisabled} className="space-y-3">
-              <Label>Screen Resolution</Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="screen-max-width">Max Width</Label>
-                  <Input
-                    id="screen-max-width"
-                    type="number"
-                    value={config.screen_max_width || ""}
-                    onChange={(e) =>
-                      onConfigChange(
-                        "screen_max_width",
-                        e.target.value
-                          ? parseInt(e.target.value, 10)
-                          : undefined,
-                      )
-                    }
-                    placeholder="e.g., 1920"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="screen-max-height">Max Height</Label>
-                  <Input
-                    id="screen-max-height"
-                    type="number"
-                    value={config.screen_max_height || ""}
-                    onChange={(e) =>
-                      onConfigChange(
-                        "screen_max_height",
-                        e.target.value
-                          ? parseInt(e.target.value, 10)
-                          : undefined,
-                      )
-                    }
-                    placeholder="e.g., 1080"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="screen-min-width">Min Width</Label>
-                  <Input
-                    id="screen-min-width"
-                    type="number"
-                    value={config.screen_min_width || ""}
-                    onChange={(e) =>
-                      onConfigChange(
-                        "screen_min_width",
-                        e.target.value
-                          ? parseInt(e.target.value, 10)
-                          : undefined,
-                      )
-                    }
-                    placeholder="e.g., 800"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="screen-min-height">Min Height</Label>
-                  <Input
-                    id="screen-min-height"
-                    type="number"
-                    value={config.screen_min_height || ""}
-                    onChange={(e) =>
-                      onConfigChange(
-                        "screen_min_height",
-                        e.target.value
-                          ? parseInt(e.target.value, 10)
-                          : undefined,
-                      )
-                    }
-                    placeholder="e.g., 600"
-                  />
-                </div>
-              </div>
-            </fieldset>
-          </TabsContent>
-
-          <TabsContent value="manual" className="space-y-6">
-            {renderAdvancedForm()}
-          </TabsContent>
-        </Tabs>
-      )}
-    </div>
-  );
+  return <div className={`space-y-6 ${className}`}>{renderAdvancedForm()}</div>;
 }

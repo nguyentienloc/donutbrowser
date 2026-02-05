@@ -1,3 +1,5 @@
+import type { OdooProxy } from "./odoo/types";
+
 export interface ProxySettings {
   proxy_type: string; // "http", "https", "socks4", or "socks5"
   host: string;
@@ -27,6 +29,11 @@ export interface BrowserProfile {
   note?: string; // User note
   sync_enabled?: boolean; // Whether sync is enabled for this profile
   last_sync?: number; // Timestamp of last successful sync (epoch seconds)
+  odoo_id?: string;
+  profile_url?: string;
+  created_at?: number;
+  odoo_proxy?: OdooProxy;
+  absolute_path?: string;
 }
 
 export type SyncStatus = "Disabled" | "Syncing" | "Synced" | "Error";

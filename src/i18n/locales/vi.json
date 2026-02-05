@@ -1,0 +1,460 @@
+{
+  "common": {
+    "buttons": {
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "close": "Đóng",
+      "delete": "Xóa",
+      "create": "Tạo mới",
+      "back": "Quay lại",
+      "retry": "Thử lại",
+      "download": "Tải về",
+      "confirm": "Xác nhận",
+      "apply": "Áp dụng",
+      "reset": "Đặt lại",
+      "add": "Thêm",
+      "edit": "Sửa",
+      "copy": "Sao chép",
+      "clear": "Xóa sạch",
+      "search": "Tìm kiếm",
+      "select": "Chọn",
+      "grant": "Cấp quyền",
+      "start": "Bắt đầu",
+      "stop": "Dừng",
+      "enable": "Bật",
+      "disable": "Tắt",
+      "import": "Nhập",
+      "export": "Xuất",
+      "refresh": "Làm mới",
+      "loading": "Đang tải...",
+      "saveSettings": "Lưu cài đặt"
+    },
+    "status": {
+      "active": "Hoạt động",
+      "inactive": "Ngừng",
+      "running": "Đang chạy",
+      "stopped": "Đã dừng",
+      "enabled": "Đã bật",
+      "disabled": "Đã tắt",
+      "granted": "Đã cấp quyền",
+      "notGranted": "Chưa cấp quyền",
+      "connected": "Đã kết nối",
+      "disconnected": "Mất kết nối",
+      "synced": "Đã đồng bộ",
+      "syncing": "Đang đồng bộ",
+      "pending": "Đang chờ",
+      "error": "Lỗi"
+    },
+    "labels": {
+      "name": "Tên",
+      "type": "Loại",
+      "status": "Trạng thái",
+      "actions": "Hành động",
+      "description": "Mô tả",
+      "none": "Không có",
+      "default": "Mặc định",
+      "custom": "Tùy chỉnh",
+      "optional": "Không bắt buộc",
+      "required": "Bắt buộc"
+    },
+    "time": {
+      "days": "ngày",
+      "hours": "giờ",
+      "minutes": "phút",
+      "seconds": "giây",
+      "remaining": "còn lại"
+    }
+  },
+  "settings": {
+    "title": "Cài đặt",
+    "appearance": {
+      "title": "Giao diện",
+      "theme": "Chủ đề",
+      "themeDescription": "Chọn chủ đề ưa thích hoặc theo hệ thống. Thay đổi sẽ áp dụng sau khi lưu.",
+      "themePreset": "Mẫu chủ đề",
+      "customColors": "Màu tùy chỉnh",
+      "selectTheme": "Chọn chủ đề",
+      "selectThemePreset": "Chọn mẫu chủ đề",
+      "yourOwn": "Của bạn",
+      "light": "Sáng",
+      "dark": "Tối",
+      "system": "Hệ thống"
+    },
+    "language": {
+      "title": "Ngôn ngữ",
+      "description": "Chọn ngôn ngữ hiển thị cho ứng dụng.",
+      "systemDefault": "Mặc định hệ thống",
+      "selectLanguage": "Chọn ngôn ngữ"
+    },
+    "defaultBrowser": {
+      "title": "Trình duyệt mặc định",
+      "setAsDefault": "Đặt làm mặc định",
+      "alreadyDefault": "Đã là mặc định",
+      "description": "Khi là mặc định, Donut Browser sẽ xử lý các liên kết web và cho phép bạn chọn profile để mở."
+    },
+    "permissions": {
+      "title": "Quyền hệ thống",
+      "loading": "Đang tải quyền...",
+      "description": "Các quyền này cho phép trình duyệt truy cập tài nguyên hệ thống. Mỗi trang web vẫn sẽ hỏi ý kiến bạn riêng biệt.",
+      "microphone": "Microphone",
+      "microphoneDescription": "Truy cập mic cho trình duyệt",
+      "camera": "Máy ảnh",
+      "cameraDescription": "Truy cập máy ảnh cho trình duyệt"
+    },
+    "integrations": {
+      "title": "Tích hợp",
+      "description": "Cấu hình Local API và MCP để kết nối với các công cụ bên ngoài.",
+      "openSettings": "Mở cài đặt tích hợp"
+    },
+    "commercial": {
+      "title": "Bản quyền thương mại",
+      "trialActive": "Dùng thử: còn {{days}} ngày, {{hours}} giờ",
+      "trialActiveDescription": "Sử dụng thương mại miễn phí trong thời gian dùng thử",
+      "trialExpired": "Hết hạn dùng thử",
+      "trialExpiredDescription": "Sử dụng cá nhân vẫn miễn phí. Sử dụng thương mại cần mua bản quyền."
+    },
+    "advanced": {
+      "title": "Nâng cao",
+      "clearCache": "Xóa bộ nhớ đệm phiên bản",
+      "clearCacheDescription": "Xóa dữ liệu phiên bản trình duyệt đã lưu và tải lại từ nguồn."
+    }
+  },
+  "header": {
+    "searchPlaceholder": "Tìm kiếm profile...",
+    "clearSearch": "Xóa tìm kiếm",
+    "moreActions": "Hành động khác",
+    "createProfile": "Tạo profile mới",
+    "menu": {
+      "settings": "Cài đặt",
+      "proxies": "Proxy",
+      "groups": "Nhóm",
+      "syncService": "Dịch vụ đồng bộ",
+      "integrations": "Tích hợp",
+      "importProfile": "Nhập Profile",
+      "importOdoo": "Nhập từ Server",
+      "importZsmkt": "Nhập từ zs-mkt (JSON)",
+      "logoutOdoo": "Đăng xuất",
+      "odooAccount": "Tài khoản"
+    }
+  },
+  "profiles": {
+    "title": "Danh sách Profile",
+    "empty": "Chưa có profile nào",
+    "emptyDescription": "Hãy tạo profile đầu tiên để bắt đầu.",
+    "createFirst": "Tạo Profile",
+    "noResults": "Không tìm thấy kết quả",
+    "noResultsDescription": "Không có profile nào khớp với tìm kiếm của bạn.",
+    "table": {
+      "name": "Tên",
+      "browser": "Trình duyệt",
+      "status": "Trạng thái",
+      "actions": "Thao tác",
+      "note": "Ghi chú",
+      "group": "Nhóm",
+      "proxy": "Proxy",
+      "lastLaunch": "Mở lần cuối"
+    },
+    "actions": {
+      "launch": "Mở",
+      "stop": "Dừng",
+      "edit": "Sửa",
+      "delete": "Xóa",
+      "copyCookies": "Copy Cookies",
+      "configure": "Cấu hình",
+      "clone": "Nhân bản",
+      "uploadOdoo": "Tải lên Server",
+      "downloadOdoo": "Tải về từ Server",
+      "assignGroup": "Gán vào Nhóm",
+      "viewNetwork": "Xem Traffic Network",
+      "updateProxy": "Đổi Proxy"
+    }
+  },
+  "deleteDialog": {
+    "title": "Xóa Profile",
+    "description": "Bạn có chắc chắn muốn xóa profile này? Hành động này không thể hoàn tác.",
+    "profilesTitle": "Xóa nhiều Profile",
+    "profilesDescription": "Xóa các profile đã chọn? Toàn bộ dữ liệu sẽ mất vĩnh viễn.",
+    "profilesToDelete": "Các profile sẽ bị xóa:"
+  },
+  "proxies": {
+    "title": "Quản lý Proxy",
+    "management": "Quản lý Proxy",
+    "add": "Thêm Proxy",
+    "edit": "Sửa Proxy",
+    "delete": "Xóa Proxy",
+    "import": "Nhập",
+    "export": "Xuất",
+    "noProxies": "Chưa có Proxy",
+    "noProxiesDescription": "Thêm proxy để thay đổi IP khi duyệt web.",
+    "form": {
+      "name": "Tên",
+      "namePlaceholder": "Nhập tên gợi nhớ",
+      "type": "Loại",
+      "host": "Địa chỉ (Host)",
+      "hostPlaceholder": "proxy.example.com",
+      "port": "Cổng (Port)",
+      "portPlaceholder": "8080",
+      "username": "Tài khoản",
+      "usernamePlaceholder": "Không bắt buộc",
+      "password": "Mật khẩu",
+      "passwordPlaceholder": "Không bắt buộc"
+    },
+    "types": {
+      "http": "HTTP",
+      "https": "HTTPS",
+      "socks4": "SOCKS4",
+      "socks5": "SOCKS5"
+    },
+    "check": {
+      "checking": "Đang kiểm tra...",
+      "valid": "Proxy hoạt động tốt",
+      "invalid": "Proxy lỗi",
+      "lastChecked": "Kiểm tra lúc: {{time}}"
+    }
+  },
+  "groups": {
+    "title": "Quản lý Nhóm",
+    "management": "Quản lý Nhóm",
+    "add": "Thêm Nhóm",
+    "edit": "Sửa Nhóm",
+    "delete": "Xóa Nhóm",
+    "noGroups": "Chưa có nhóm",
+    "noGroupsDescription": "Tạo nhóm để phân loại các profile của bạn.",
+    "form": {
+      "name": "Tên Nhóm",
+      "namePlaceholder": "Nhập tên nhóm"
+    },
+    "profileCount": "{{count}} profile",
+    "profileCount_plural": "{{count}} profiles",
+    "assignProfiles": "Gán vào nhóm"
+  },
+  "sync": {
+    "title": "Đồng bộ",
+    "config": "Cấu hình đồng bộ",
+    "serverUrl": "Địa chỉ Server",
+    "serverUrlPlaceholder": "https://sync.example.com",
+    "token": "Mã xác thực (Token)",
+    "tokenPlaceholder": "Nhập mã token đồng bộ",
+    "status": {
+      "connected": "Đã kết nối",
+      "disconnected": "Chưa kết nối",
+      "syncing": "Đang đồng bộ...",
+      "error": "Lỗi đồng bộ"
+    },
+    "description": "Kết nối với server để đồng bộ profile, proxy và nhóm giữa các thiết bị."
+  },
+  "pagination": {
+    "showing": "Hiển thị",
+    "of": "trong số",
+    "prev": "Trước",
+    "next": "Sau"
+  },
+  "odooImport": {
+    "title": "Nhập Profile từ Odoo",
+    "loading": "Đang tải danh sách từ Odoo...",
+    "empty": "Không tìm thấy profile nào trên Odoo.",
+    "selected": "{{count}} profile đã chọn",
+    "importSelected": "Nhập bản ghi đã chọn",
+    "syncedBadge": "Đã đồng bộ"
+  },
+  "zsmktImport": {
+    "title": "Nhập Profile từ zs-mkt",
+    "label": "Dán dữ liệu JSON (từ localStorage 'zs-profiles' của app cũ)",
+    "description": "Hành động này sẽ nhập thông tin profile, fingerprint và proxy. Dữ liệu (folders) cần được di chuyển thủ công hoặc đồng bộ sau.",
+    "importButton": "Nhập Profile"
+  },
+  "createProfile": {
+    "title": "Tạo Profile Mới",
+    "configureTitle": "Cấu Hình Profile",
+    "browserSelection": {
+      "title": "Trình Duyệt Anti-Detect",
+      "description": "Chọn trình duyệt có khả năng chống phát hiện"
+    },
+    "chromiumWayfern": "Chromium (Wayfern)",
+    "firefoxCamoufox": "Firefox (Camoufox)",
+    "antiDetectBrowser": "Trình Duyệt Anti-Detect",
+    "profileName": "Tên Profile",
+    "profileNamePlaceholder": "Nhập tên profile",
+    "fetchingVersions": "Đang tải phiên bản...",
+    "downloadRequired": "{{browser}} phiên bản ({{version}}) cần được tải về",
+    "downloading": "Đang tải xuống...",
+    "download": "Tải xuống",
+    "versionAvailable": "✓ {{browser}} phiên bản ({{version}}) đã sẵn sàng",
+    "downloadingVersion": "Đang tải {{browser}} phiên bản ({{version}})...",
+    "back": "Quay lại",
+    "create": "Tạo",
+    "cancel": "Hủy",
+    "fingerprint": {
+      "generateRandom": "Tạo Ngẫu Nhiên",
+      "generatingTooltip": "Tạo User Agent ngẫu nhiên phù hợp với hệ điều hành",
+      "osSelection": {
+        "label": "Hệ Điều Hành Fingerprint",
+        "placeholder": "Chọn hệ điều hành"
+      },
+      "warnings": {
+        "editingDisabled": "Không thể chỉnh sửa fingerprint vì profile đang chạy.",
+        "advancedWarning": "Cảnh báo: Chỉ chỉnh sửa các thông số này nếu bạn biết mình đang làm gì.",
+        "osDifferent": "⚠️ Cảnh báo: Chọn hệ điều hành khác với hệ thống hiện tại ({{currentOS}}) sẽ tăng nguy cơ bị phát hiện. Các trang web có thể phát hiện sự không khớp giữa fingerprint và hành vi hệ thống thực tế."
+      },
+      "userAgentPlatform": {
+        "title": "User Agent & Platform",
+        "userAgent": "User Agent",
+        "userAgentPlaceholder": "Mozilla/5.0...",
+        "platform": "Platform",
+        "platformPlaceholder": "ví dụ: Win32, MacIntel, Linux x86_64",
+        "platformVersion": "Phiên Bản Platform",
+        "platformVersionPlaceholder": "ví dụ: 10.0.0",
+        "brand": "Thương Hiệu",
+        "brandPlaceholder": "ví dụ: Google Chrome",
+        "brandVersion": "Phiên Bản Thương Hiệu",
+        "brandVersionPlaceholder": "ví dụ: 143"
+      },
+      "hardware": {
+        "title": "Thuộc Tính Phần Cứng",
+        "concurrency": "Hardware Concurrency",
+        "concurrencyPlaceholder": "ví dụ: 8",
+        "maxTouchPoints": "Số Điểm Chạm Tối Đa",
+        "maxTouchPointsPlaceholder": "ví dụ: 0",
+        "deviceMemory": "Bộ Nhớ Thiết Bị (GB)",
+        "deviceMemoryPlaceholder": "ví dụ: 8"
+      },
+      "screen": {
+        "title": "Thuộc Tính Màn Hình",
+        "width": "Chiều Rộng Màn Hình",
+        "widthPlaceholder": "ví dụ: 1920",
+        "height": "Chiều Cao Màn Hình",
+        "heightPlaceholder": "ví dụ: 1080",
+        "availWidth": "Chiều Rộng Khả Dụng",
+        "availWidthPlaceholder": "ví dụ: 1920",
+        "availHeight": "Chiều Cao Khả Dụng",
+        "availHeightPlaceholder": "ví dụ: 1040",
+        "colorDepth": "Độ Sâu Màu",
+        "colorDepthPlaceholder": "ví dụ: 24",
+        "pixelRatio": "Tỷ Lệ Pixel",
+        "pixelRatioPlaceholder": "ví dụ: 1.0"
+      },
+      "window": {
+        "title": "Thuộc Tính Cửa Sổ",
+        "outerWidth": "Chiều Rộng Ngoài",
+        "outerWidthPlaceholder": "ví dụ: 1920",
+        "outerHeight": "Chiều Cao Ngoài",
+        "outerHeightPlaceholder": "ví dụ: 1040",
+        "innerWidth": "Chiều Rộng Trong",
+        "innerWidthPlaceholder": "ví dụ: 1920",
+        "innerHeight": "Chiều Cao Trong",
+        "innerHeightPlaceholder": "ví dụ: 940",
+        "screenX": "Screen X",
+        "screenXPlaceholder": "ví dụ: 0",
+        "screenY": "Screen Y",
+        "screenYPlaceholder": "ví dụ: 0"
+      },
+      "language": {
+        "title": "Ngôn Ngữ & Vùng",
+        "primary": "Ngôn Ngữ Chính (navigator.language)",
+        "primaryPlaceholder": "ví dụ: en-US",
+        "languages": "Danh Sách Ngôn Ngữ (JSON array)",
+        "languagesPlaceholder": "[\"en-US\", \"en\"]",
+        "doNotTrack": "Do Not Track",
+        "doNotTrackPlaceholder": "Chọn giá trị DNT",
+        "doNotTrackOptions": {
+          "allowed": "0 (cho phép theo dõi)",
+          "notAllowed": "1 (không cho phép theo dõi)",
+          "unspecified": "unspecified"
+        }
+      },
+      "timezone": {
+        "title": "Múi Giờ & Vị Trí",
+        "description": "Các giá trị này ghi đè múi giờ và API vị trí của trình duyệt.",
+        "timezone": "Múi Giờ (IANA)",
+        "timezonePlaceholder": "ví dụ: America/New_York",
+        "offset": "Offset (phút tính từ UTC)",
+        "offsetPlaceholder": "ví dụ: 300 cho EST (UTC-5)",
+        "latitude": "Vĩ Độ",
+        "latitudePlaceholder": "ví dụ: 40.7128",
+        "longitude": "Kinh Độ",
+        "longitudePlaceholder": "ví dụ: -74.0060",
+        "accuracy": "Độ Chính Xác (mét)",
+        "accuracyPlaceholder": "ví dụ: 100"
+      },
+      "webgl": {
+        "title": "Thuộc Tính WebGL",
+        "vendor": "WebGL Vendor",
+        "vendorPlaceholder": "ví dụ: Intel",
+        "renderer": "WebGL Renderer",
+        "rendererPlaceholder": "ví dụ: Intel(R) HD Graphics",
+        "parameters": "Tham Số WebGL (JSON)",
+        "parametersPlaceholder": "{\"7936\": \"Intel\", \"7937\": \"Intel(R) HD Graphics\"}"
+      },
+      "canvas": {
+        "title": "Canvas Fingerprint",
+        "noiseSeed": "Canvas Noise Seed",
+        "noiseSeedPlaceholder": "Nhập một chuỗi seed cho canvas fingerprint",
+        "noiseSeedDescription": "Seed này được dùng để tạo canvas fingerprint nhất quán nhưng độc nhất. Mỗi profile nên có seed khác nhau."
+      },
+      "fonts": {
+        "title": "Fonts (JSON array)",
+        "placeholder": "[\"Arial\", \"Verdana\", \"Times New Roman\"]"
+      },
+      "audio": {
+        "title": "Thuộc Tính Audio",
+        "sampleRate": "Sample Rate",
+        "sampleRatePlaceholder": "ví dụ: 48000",
+        "maxChannelCount": "Số Kênh Tối Đa",
+        "maxChannelCountPlaceholder": "ví dụ: 2"
+      },
+      "battery": {
+        "title": "Pin",
+        "charging": "Đang Sạc",
+        "level": "Mức Pin (0-1)",
+        "levelPlaceholder": "ví dụ: 0.85"
+      },
+      "vendor": {
+        "title": "Thông Tin Vendor",
+        "vendor": "Vendor",
+        "vendorPlaceholder": "ví dụ: Google Inc.",
+        "vendorSub": "Vendor Sub",
+        "vendorSubPlaceholder": "",
+        "productSub": "Product Sub",
+        "productSubPlaceholder": "ví dụ: 20030107"
+      },
+      "blocking": {
+        "title": "Tùy Chọn Chặn",
+        "blockImages": "Chặn Hình Ảnh",
+        "blockWebRTC": "Chặn WebRTC",
+        "blockWebGL": "Chặn WebGL"
+      },
+      "navigator": {
+        "title": "Thuộc Tính Navigator",
+        "appVersion": "App Version",
+        "appVersionPlaceholder": "ví dụ: 5.0 (Macintosh)",
+        "oscpu": "OS CPU",
+        "oscpuPlaceholder": "ví dụ: Intel Mac OS X 10.15"
+      },
+      "locale": {
+        "title": "Locale",
+        "language": "Ngôn Ngữ",
+        "languagePlaceholder": "ví dụ: tr",
+        "region": "Vùng",
+        "regionPlaceholder": "ví dụ: TR",
+        "script": "Script",
+        "scriptPlaceholder": "ví dụ: Latn"
+      },
+      "geolocation": {
+        "title": "Vị Trí Địa Lý"
+      },
+      "webglShaderPrecision": {
+        "title": "WebGL Shader Precision Formats",
+        "title2": "WebGL2 Shader Precision Formats"
+      },
+      "webglParameters2": {
+        "title": "WebGL2 Parameters"
+      },
+      "batteryExtended": {
+        "chargingTime": "Thời Gian Sạc",
+        "chargingTimePlaceholder": "ví dụ: 0",
+        "dischargingTime": "Thời Gian Xả",
+        "dischargingTimePlaceholder": "ví dụ: 0"
+      }
+    }
+  }
+}

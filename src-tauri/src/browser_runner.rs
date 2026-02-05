@@ -63,10 +63,91 @@ impl BrowserRunner {
     browser_dir.push(&profile.browser);
     browser_dir.push(&profile.version);
 
+    // Fallback for Camoufox to external camoufox-js binary
+    if profile.browser == "camoufox" {
+      if let Some(external_path) = crate::camoufox::external_binary::get_external_camoufox_path() {
+        if external_path.exists() {
+          log::info!(
+            "Using external Camoufox binary as primary source: {:?}",
+            external_path
+          );
+          return Ok(external_path);
+        }
+      }
+    }
+
     // Get platform-specific executable path
-    browser
-      .get_executable_path(&browser_dir)
-      .map_err(|e| format!("Failed to get executable path for {}: {e}", profile.browser).into())
+    let internal_path_res = browser.get_executable_path(&browser_dir);
+
+    match internal_path_res {
+      Ok(path) if path.exists() => Ok(path),
+      _ => {
+        // Final fallback (already tried above, but keeping for structure)
+        if profile.browser == "camoufox" {
+          if let Some(external_path) =
+            crate::camoufox::external_binary::get_external_camoufox_path()
+          {
+            return Ok(external_path);
+          }
+        }
+
+        internal_path_res
+          .map_err(|e| format!("Failed to get executable path for {}: {e}", profile.browser).into())
+      }
+    }
+  }
+
+  /// Resolve the effective upstream proxy settings for a profile.
+  /// Prioritizes local proxy_id, then falls back to odoo_proxy.
+  pub fn resolve_upstream_proxy(&self, profile: &BrowserProfile) -> Option<ProxySettings> {
+    log::info!("Resolving upstream proxy for profile: {} (ID: {})", profile.name, profile.id);
+    log::info!("  - proxy_id: {:?}", profile.proxy_id);
+    log::info!("  - has odoo_proxy: {}", profile.odoo_proxy.is_some());
+
+    // 1. Give priority to local proxy_id if set
+    if let Some(proxy_id) = &profile.proxy_id {
+      if let Some(settings) = PROXY_MANAGER.get_proxy_settings_by_id(proxy_id) {
+        log::info!("  => Resolved from proxy_id: {}:{}", settings.host, settings.port);
+        return Some(settings);
+      } else {
+        log::warn!("  ! proxy_id set but settings not found in PROXY_MANAGER: {}", proxy_id);
+      }
+    }
+
+    // 2. Fallback to odoo_proxy if available (tải động từ Odoo frontend)
+    if let Some(odoo_proxy) = &profile.odoo_proxy {
+      log::info!("  - Odoo Proxy data: {}:{}", odoo_proxy.ip, odoo_proxy.port);
+      let port = match &odoo_proxy.port {
+        serde_json::Value::Number(n) => n.as_u64().unwrap_or(0) as u16,
+        serde_json::Value::String(s) => s.parse::<u16>().unwrap_or(0),
+        _ => {
+          log::warn!("  ! Invalid Odoo proxy port type: {:?}", odoo_proxy.port);
+          0
+        },
+      };
+
+      if port > 0 {
+        let settings = ProxySettings {
+          proxy_type: odoo_proxy.giaothuc.to_lowercase(),
+          host: odoo_proxy.ip.clone(),
+          port,
+          username: odoo_proxy.tendangnhap.clone(),
+          password: odoo_proxy.matkhau.clone(),
+        };
+        let user_masked = settings.username.as_ref().map(|u| {
+          if u.len() > 3 { format!("{}***", &u[..3]) } else { "***".to_string() }
+        }).unwrap_or_else(|| "none".to_string());
+
+        log::info!("  => Resolved from odoo_proxy: {}:{} (user: {}, has_pass: {})", 
+          settings.host, settings.port, user_masked, settings.password.is_some());
+        return Some(settings);
+      } else {
+        log::warn!("  ! Odoo proxy port is 0 or invalid");
+      }
+    }
+
+    log::info!("  => Using DIRECT (no proxy)");
+    None
   }
 
   pub async fn launch_browser(
@@ -113,10 +194,7 @@ impl BrowserRunner {
       });
 
       // Always start a local proxy for Camoufox (for traffic monitoring and geoip support)
-      let upstream_proxy = profile
-        .proxy_id
-        .as_ref()
-        .and_then(|id| PROXY_MANAGER.get_proxy_settings_by_id(id));
+      let upstream_proxy = self.resolve_upstream_proxy(profile);
 
       log::info!(
         "Starting local proxy for Camoufox profile: {} (upstream: {})",
@@ -312,10 +390,7 @@ impl BrowserRunner {
       });
 
       // Always start a local proxy for Wayfern (for traffic monitoring and geoip support)
-      let upstream_proxy = profile
-        .proxy_id
-        .as_ref()
-        .and_then(|id| PROXY_MANAGER.get_proxy_settings_by_id(id));
+      let upstream_proxy = self.resolve_upstream_proxy(profile);
 
       log::info!(
         "Starting local proxy for Wayfern profile: {} (upstream: {})",
@@ -1063,10 +1138,15 @@ impl BrowserRunner {
       .profile_manager
       .list_profiles()
       .map_err(|e| format!("Failed to list profiles in launch_or_open_url: {e}"))?;
-    let updated_profile = profiles
+    let mut updated_profile = profiles
       .into_iter()
       .find(|p| p.id == profile.id)
       .unwrap_or_else(|| profile.clone());
+
+    // Merge dynamic proxy from passed profile if present
+    if profile.odoo_proxy.is_some() {
+      updated_profile.odoo_proxy = profile.odoo_proxy.clone();
+    }
 
     log::info!(
       "Checking browser status for profile: {} (ID: {})",
@@ -1085,10 +1165,15 @@ impl BrowserRunner {
       .profile_manager
       .list_profiles()
       .map_err(|e| format!("Failed to list profiles after status check: {e}"))?;
-    let final_profile = profiles
+    let mut final_profile = profiles
       .into_iter()
       .find(|p| p.id == profile.id)
       .unwrap_or_else(|| updated_profile.clone());
+
+    // Merge dynamic proxy again to ensure it carries through to launch
+    if profile.odoo_proxy.is_some() {
+      final_profile.odoo_proxy = profile.odoo_proxy.clone();
+    }
 
     log::info!(
       "Browser status check - Profile: {} (ID: {}), Running: {}, URL: {:?}, PID: {:?}",
@@ -2389,15 +2474,33 @@ pub async fn launch_browser_profile(
   let mut internal_proxy_settings: Option<ProxySettings> = None;
 
   // Resolve the most up-to-date profile from disk by ID to avoid using stale proxy_id/browser state
+  log::info!(
+    "launch_browser_profile called for profile: {} (ID: {}), has odoo_proxy: {}",
+    profile.name,
+    profile.id,
+    profile.odoo_proxy.is_some()
+  );
+
   let profile_for_launch = match browser_runner
     .profile_manager
     .list_profiles()
     .map_err(|e| format!("Failed to list profiles: {e}"))
   {
-    Ok(profiles) => profiles
-      .into_iter()
-      .find(|p| p.id == profile.id)
-      .unwrap_or_else(|| profile.clone()),
+    Ok(profiles) => {
+      let mut p = profiles
+        .into_iter()
+        .find(|p| p.id == profile.id)
+        .unwrap_or_else(|| {
+          log::info!("Profile not found on disk, using the one from frontend");
+          profile.clone()
+        });
+      // Mergedynamic proxy from frontend if present
+      if profile.odoo_proxy.is_some() {
+        log::info!("Merging odoo_proxy from frontend into resolved profile");
+        p.odoo_proxy = profile.odoo_proxy.clone();
+      }
+      p
+    }
     Err(e) => {
       return Err(e);
     }
@@ -2413,10 +2516,7 @@ pub async fn launch_browser_profile(
   // This ensures all traffic goes through the local proxy for monitoring and future features
   if profile.browser != "camoufox" && profile.browser != "wayfern" {
     // Determine upstream proxy if configured; otherwise use DIRECT (no upstream)
-    let upstream_proxy = profile_for_launch
-      .proxy_id
-      .as_ref()
-      .and_then(|id| PROXY_MANAGER.get_proxy_settings_by_id(id));
+    let upstream_proxy = browser_runner.resolve_upstream_proxy(&profile_for_launch);
 
     // Use a temporary PID (1) to start the proxy, we'll update it after browser launch
     let temp_pid = 1u32;

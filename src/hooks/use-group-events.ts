@@ -34,7 +34,8 @@ export function useGroupEvents() {
 
   // Initial load and event listeners setup
   useEffect(() => {
-    let groupsUnlisten: (() => void) | undefined;
+    let unlistenGroups: (() => void) | undefined;
+    let unlistenProfiles: (() => void) | undefined;
 
     const setupListeners = async () => {
       try {
@@ -42,24 +43,18 @@ export function useGroupEvents() {
         await loadGroups();
 
         // Listen for group changes (create, delete, rename, update, etc.)
-        groupsUnlisten = await listen("groups-changed", () => {
+        unlistenGroups = await listen("groups-changed", () => {
           console.log("Received groups-changed event, reloading groups");
           void loadGroups();
         });
 
         // Also listen for profile changes since groups show profile counts
-        const profilesUnlisten = await listen("profiles-changed", () => {
+        unlistenProfiles = await listen("profiles-changed", () => {
           console.log(
             "Received profiles-changed event, reloading groups for updated counts",
           );
           void loadGroups();
         });
-
-        // Store both listeners for cleanup
-        groupsUnlisten = () => {
-          groupsUnlisten?.();
-          profilesUnlisten();
-        };
 
         console.log("Group event listeners set up successfully");
       } catch (err) {
@@ -76,7 +71,8 @@ export function useGroupEvents() {
 
     // Cleanup listeners on unmount
     return () => {
-      if (groupsUnlisten) groupsUnlisten();
+      unlistenGroups?.();
+      unlistenProfiles?.();
     };
   }, [loadGroups]);
 

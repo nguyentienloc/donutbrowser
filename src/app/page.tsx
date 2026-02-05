@@ -2,96 +2,257 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrent } from "@tauri-apps/plugin-deep-link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+  BrowserFilter,
+  type BrowserFilterType,
+} from "@/components/browser-filter";
 import { CamoufoxConfigDialog } from "@/components/camoufox-config-dialog";
-import { CommercialTrialModal } from "@/components/commercial-trial-modal";
-import { CookieCopyDialog } from "@/components/cookie-copy-dialog";
 import { CreateProfileDialog } from "@/components/create-profile-dialog";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { GroupAssignmentDialog } from "@/components/group-assignment-dialog";
 import { GroupBadges } from "@/components/group-badges";
 import { GroupManagementDialog } from "@/components/group-management-dialog";
 import HomeHeader from "@/components/home-header";
-import { ImportProfileDialog } from "@/components/import-profile-dialog";
-import { IntegrationsDialog } from "@/components/integrations-dialog";
-import { LaunchOnLoginDialog } from "@/components/launch-on-login-dialog";
-import { PermissionDialog } from "@/components/permission-dialog";
-import { ProfilesDataTable } from "@/components/profile-data-table";
-import { ProfileSelectorDialog } from "@/components/profile-selector-dialog";
-import { ProfileSyncDialog } from "@/components/profile-sync-dialog";
-import { ProxyAssignmentDialog } from "@/components/proxy-assignment-dialog";
+import { OdooImportDialog } from "@/components/odoo-import-dialog";
+import { ProfilesDataTableVirtual } from "@/components/profile-data-table-virtual";
 import { ProxyManagementDialog } from "@/components/proxy-management-dialog";
 import { SettingsDialog } from "@/components/settings-dialog";
-import { SyncConfigDialog } from "@/components/sync-config-dialog";
-import { WayfernTermsDialog } from "@/components/wayfern-terms-dialog";
-import { useAppUpdateNotifications } from "@/hooks/use-app-update-notifications";
-import { useCommercialTrial } from "@/hooks/use-commercial-trial";
+import { ZsMktImportDialog } from "@/components/zsmkt-import-dialog";
+import { useBrowserDownload } from "@/hooks/use-browser-download";
 import { useGroupEvents } from "@/hooks/use-group-events";
 import type { PermissionType } from "@/hooks/use-permissions";
-import { usePermissions } from "@/hooks/use-permissions";
 import { useProfileEvents } from "@/hooks/use-profile-events";
 import { useProxyEvents } from "@/hooks/use-proxy-events";
-import { useUpdateNotifications } from "@/hooks/use-update-notifications";
 import { useVersionUpdater } from "@/hooks/use-version-updater";
-import { useWayfernTerms } from "@/hooks/use-wayfern-terms";
 import { showErrorToast, showSuccessToast, showToast } from "@/lib/toast-utils";
-import type { BrowserProfile, CamoufoxConfig, WayfernConfig } from "@/types";
-
-type BrowserTypeString =
-  | "firefox"
-  | "firefox-developer"
-  | "chromium"
-  | "brave"
-  | "zen"
-  | "camoufox"
-  | "wayfern";
-
-interface PendingUrl {
-  id: string;
-  url: string;
-}
+import { useAuth } from "@/providers/auth-provider";
+import type { BrowserProfile } from "@/types";
 
 export default function Home() {
-  // Mount global version update listener/toasts
   useVersionUpdater();
-
-  // Use the new profile events hook for centralized profile management
   const {
     profiles,
     runningProfiles,
     isLoading: profilesLoading,
-    error: profilesError,
   } = useProfileEvents();
+  const { groups: groupsData, isLoading: groupsLoading } = useGroupEvents();
+  const { isLoading: proxiesLoading } = useProxyEvents();
+  const { downloadBrowser } = useBrowserDownload();
+  const { isLoggedIn } = useAuth();
 
-  const {
-    groups: groupsData,
-    isLoading: groupsLoading,
-    error: groupsError,
-  } = useGroupEvents();
+  const [odooProfiles, setOdooProfiles] = useState<any[]>([]);
+  const loadOdooProfiles = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const result = await invoke<{ items: any[] }>("list_odoo_profiles", {
+        offset: 0,
+        limit: 1000,
+      });
+      setOdooProfiles(result.items || []);
+      console.log("✅ Reloaded Odoo profiles:", result.items?.length || 0);
+    } catch (_e) {}
+  }, [isLoggedIn]);
 
-  const {
-    storedProxies,
-    isLoading: proxiesLoading,
-    error: proxiesError,
-  } = useProxyEvents();
+  useEffect(() => {
+    if (isLoggedIn) void loadOdooProfiles();
+  }, [isLoggedIn, loadOdooProfiles]);
 
-  // Wayfern terms and commercial trial hooks
-  const {
-    termsAccepted,
-    isLoading: termsLoading,
-    checkTerms,
-  } = useWayfernTerms();
-  const {
-    trialStatus,
-    hasAcknowledged: trialAcknowledged,
-    checkTrialStatus,
-  } = useCommercialTrial();
+  // Listen DIRECTLY for profiles-changed event to reload Odoo profiles
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let profilesChangedUnlisten: (() => void) | undefined;
 
+    const setupListener = async () => {
+      profilesChangedUnlisten = await listen("profiles-changed", () => {
+        console.log(
+          "🔄 [page.tsx] profiles-changed event received, reloading Odoo profiles...",
+        );
+        void loadOdooProfiles();
+      });
+      console.log("✅ [page.tsx] Listening for profiles-changed events");
+    };
+
+    void setupListener();
+
+    return () => {
+      if (profilesChangedUnlisten) {
+        profilesChangedUnlisten();
+        console.log(
+          "❌ [page.tsx] Stopped listening for profiles-changed events",
+        );
+      }
+    };
+  }, [isLoggedIn, loadOdooProfiles]);
+
+  // Listen for download progress events
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let unlisten: (() => void) | undefined;
+
+    const setupListener = async () => {
+      unlisten = await listen<{
+        profile_id: string;
+        profile_name: string;
+        downloaded: number;
+        total: number;
+        percentage: number;
+      }>("download-progress", (event) => {
+        const { profile_name, downloaded, total, percentage } = event.payload;
+
+        // Chỉ xử lý event từ profile download, không xử lý event từ browser download
+        if (
+          !profile_name ||
+          typeof downloaded !== "number" ||
+          typeof total !== "number"
+        ) {
+          return; // Bỏ qua event từ browser download
+        }
+
+        const downloadedMB = (downloaded / 1024 / 1024).toFixed(2);
+        const totalMB = (total / 1024 / 1024).toFixed(2);
+
+        // Update toast using a predictable ID based on profile name
+        toast.loading(
+          `Đang tải "${profile_name}": ${downloadedMB}MB / ${totalMB}MB (${percentage}%)`,
+          { id: `download-${profile_name}` },
+        );
+      });
+    };
+
+    void setupListener();
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [isLoggedIn]);
+
+  const handleDownloadWithProgress = useCallback(
+    async (profileId: string, profileUrl: string, profileName: string) => {
+      const toastId = `download-${profileName}`;
+      toast.loading(`Đang tải "${profileName}": 0MB / 0MB (0%)`, {
+        id: toastId,
+      });
+
+      try {
+        await invoke("download_profile_from_odoo_s3", {
+          profileId,
+          profileUrl,
+        });
+
+        toast.dismiss(toastId);
+        showSuccessToast(`Đã tải dữ liệu cho "${profileName}"!`);
+
+        // Reload Odoo profiles to refresh the merged list
+        void loadOdooProfiles();
+      } catch (error: any) {
+        toast.dismiss(toastId);
+        showErrorToast(`Lỗi khi tải về: ${error}`);
+      }
+    },
+    [loadOdooProfiles],
+  );
+
+  const mergedProfiles = useMemo(() => {
+    console.log("🔄 Merging profiles...");
+    console.log("  - Local profiles:", profiles.length);
+    console.log("  - Odoo profiles:", odooProfiles.length);
+
+    // Map local profiles by odoo_id for quick lookup
+    const localByOdooId = new Map(
+      profiles.filter((p) => p.odoo_id).map((p) => [String(p.odoo_id), p]),
+    );
+
+    console.log("  - Local with odoo_id:", localByOdooId.size);
+
+    // Profiles from Odoo server
+    const odooMerged = odooProfiles.map((op) => {
+      const odooIdStr = String(op.id);
+      const localProfile = localByOdooId.get(odooIdStr);
+
+      // Parse created_at
+      let created_at = 0;
+      const rawDate = op.createdAt || op.create_date;
+      if (rawDate && rawDate !== false) {
+        try {
+          const dateStr = String(rawDate);
+          created_at = Math.floor(new Date(dateStr).getTime() / 1000);
+        } catch (_e) {
+          console.error("Failed to parse date:", rawDate);
+        }
+      }
+
+      if (localProfile) {
+        // Profile exists both on server and locally - merge data
+        console.log(`  ✅ Merged: ${op.name} (local + odoo)`);
+        return {
+          ...localProfile,
+          // Override with server data
+          profile_url:
+            op.profileUrl || op.profile_url || localProfile.profile_url,
+          // FIX: Luôn ưu tiên ngày tạo từ Odoo server (created_at) hơn là ngày local
+          created_at: created_at || localProfile.created_at,
+
+          // FIX: Giữ lại thông tin proxy và user agent từ Odoo để hiển thị đúng
+          user_agent: op.userAgent || (localProfile as any).user_agent,
+          odoo_proxy: op.proxy_ids?.[0],
+
+          // Keep local data for these fields
+          name: localProfile.name,
+          browser: localProfile.browser,
+          version: localProfile.version,
+        };
+      } else {
+        // Profile only on server (cloud-only)
+        // Detect browser from User Agent if possible
+        let browser = "camoufox"; // Default
+        const ua = op.userAgent || "";
+        if (ua.toLowerCase().includes("firefox")) {
+          browser = "camoufox";
+        } else if (
+          ua.toLowerCase().includes("chrome") ||
+          ua.toLowerCase().includes("chromium")
+        ) {
+          browser = "wayfern";
+        }
+
+        return {
+          id: `cloud-${op.id}`,
+          name: op.name,
+          browser,
+          version:
+            browser === "wayfern" ? "v132.0.6834.83" : "v135.0.1-beta.24",
+          status: "cloud",
+          odoo_id: odooIdStr,
+          profile_url: op.profileUrl || op.profile_url,
+          user_agent: op.userAgent,
+          odoo_proxy: op.proxy_ids?.[0],
+          is_cloud_only: true,
+          created_at,
+        };
+      }
+    });
+
+    // Local-only profiles (not synced to Odoo)
+    const localOnly = profiles.filter((p) => !p.odoo_id);
+    console.log("  - Local-only:", localOnly.length);
+    console.log("  📊 Total merged:", odooMerged.length + localOnly.length);
+
+    return [...odooMerged, ...localOnly];
+  }, [profiles, odooProfiles]);
+
+  const [selectedGroupId, setSelectedGroupId] = useState("default");
+  const [browserFilter, setBrowserFilter] = useState<BrowserFilterType>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
   const [createProfileDialogOpen, setCreateProfileDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const [integrationsDialogOpen, setIntegrationsDialogOpen] = useState(false);
-  const [importProfileDialogOpen, setImportProfileDialogOpen] = useState(false);
+  const [_integrationsDialogOpen, setIntegrationsDialogOpen] = useState(false);
+  const [_importProfileDialogOpen, setImportProfileDialogOpen] =
+    useState(false);
+  const [zsmktImportDialogOpen, setZsmktImportDialogOpen] = useState(false);
+  const [odooImportDialogOpen, setOdooImportDialogOpen] = useState(false);
   const [proxyManagementDialogOpen, setProxyManagementDialogOpen] =
     useState(false);
   const [camoufoxConfigDialogOpen, setCamoufoxConfigDialogOpen] =
@@ -100,985 +261,477 @@ export default function Home() {
     useState(false);
   const [groupAssignmentDialogOpen, setGroupAssignmentDialogOpen] =
     useState(false);
-  const [proxyAssignmentDialogOpen, setProxyAssignmentDialogOpen] =
+  const [_proxyAssignmentDialogOpen, _setProxyAssignmentDialogOpen] =
     useState(false);
-  const [cookieCopyDialogOpen, setCookieCopyDialogOpen] = useState(false);
-  const [selectedProfilesForCookies, setSelectedProfilesForCookies] = useState<
-    string[]
-  >([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("default");
+  const [_cookieCopyDialogOpen, _setCookieCopyDialogOpen] = useState(false);
+  const [_selectedProfilesForCookies, _setSelectedProfilesForCookies] =
+    useState<string[]>([]);
   const [selectedProfilesForGroup, setSelectedProfilesForGroup] = useState<
     string[]
   >([]);
-  const [selectedProfilesForProxy, setSelectedProfilesForProxy] = useState<
+  const [_selectedProfilesForProxy, _setSelectedProfilesForProxy] = useState<
     string[]
   >([]);
-  const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [pendingUrls, setPendingUrls] = useState<PendingUrl[]>([]);
   const [currentProfileForCamoufoxConfig, setCurrentProfileForCamoufoxConfig] =
     useState<BrowserProfile | null>(null);
-  const [hasCheckedStartupPrompt, setHasCheckedStartupPrompt] = useState(false);
-  const [launchOnLoginDialogOpen, setLaunchOnLoginDialogOpen] = useState(false);
-  const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
-  const [currentPermissionType, setCurrentPermissionType] =
+  const [_launchOnLoginDialogOpen, _setLaunchOnLoginDialogOpen] =
+    useState(false);
+  const [_permissionDialogOpen, _setPermissionDialogOpen] = useState(false);
+  const [_currentPermissionType, _setCurrentPermissionType] =
     useState<PermissionType>("microphone");
   const [showBulkDeleteConfirmation, setShowBulkDeleteConfirmation] =
     useState(false);
-  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  const [syncConfigDialogOpen, setSyncConfigDialogOpen] = useState(false);
-  const [profileSyncDialogOpen, setProfileSyncDialogOpen] = useState(false);
-  const [currentProfileForSync, setCurrentProfileForSync] =
+  const [isBulkDeleting, _setIsBulkDeleting] = useState(false);
+  const [_syncConfigDialogOpen, setSyncConfigDialogOpen] = useState(false);
+  const [_profileSyncDialogOpen, _setProfileSyncDialogOpen] = useState(false);
+  const [_currentProfileForSync, _setCurrentProfileForSync] =
     useState<BrowserProfile | null>(null);
-  const { isMicrophoneAccessGranted, isCameraAccessGranted, isInitialized } =
-    usePermissions();
 
-  const handleSelectGroup = useCallback((groupId: string) => {
-    setSelectedGroupId(groupId);
-    setSelectedProfiles([]);
-  }, []);
+  const browserCounts = useMemo(() => {
+    const counts: Record<BrowserFilterType, number> = {
+      all: mergedProfiles.length,
+      camoufox: 0,
+      wayfern: 0,
+      cloud: 0,
+    };
 
-  // Check for missing binaries and offer to download them
-  const checkMissingBinaries = useCallback(async () => {
-    try {
-      const missingBinaries = await invoke<[string, string, string][]>(
-        "check_missing_binaries",
-      );
-
-      // Also check for missing GeoIP database
-      const missingGeoIP = await invoke<boolean>(
-        "check_missing_geoip_database",
-      );
-
-      if (missingBinaries.length > 0 || missingGeoIP) {
-        if (missingBinaries.length > 0) {
-          console.log("Found missing binaries:", missingBinaries);
-        }
-        if (missingGeoIP) {
-          console.log("Found missing GeoIP database for Camoufox");
-        }
-
-        // Group missing binaries by browser type to avoid concurrent downloads
-        const browserMap = new Map<string, string[]>();
-        for (const [profileName, browser, version] of missingBinaries) {
-          if (!browserMap.has(browser)) {
-            browserMap.set(browser, []);
-          }
-          const versions = browserMap.get(browser);
-          if (versions) {
-            versions.push(`${version} (for ${profileName})`);
-          }
-        }
-
-        // Show a toast notification about missing binaries and auto-download them
-        let missingList = Array.from(browserMap.entries())
-          .map(([browser, versions]) => `${browser}: ${versions.join(", ")}`)
-          .join(", ");
-
-        if (missingGeoIP) {
-          if (missingList) {
-            missingList += ", GeoIP database for Camoufox";
-          } else {
-            missingList = "GeoIP database for Camoufox";
-          }
-        }
-
-        console.log(`Downloading missing components: ${missingList}`);
-
-        try {
-          // Download missing binaries and GeoIP database sequentially to prevent conflicts
-          const downloaded = await invoke<string[]>(
-            "ensure_all_binaries_exist",
-          );
-          if (downloaded.length > 0) {
-            console.log(
-              "Successfully downloaded missing components:",
-              downloaded,
-            );
-          }
-        } catch (downloadError) {
-          console.error(
-            "Failed to download missing components:",
-            downloadError,
-          );
-        }
-      }
-    } catch (err: unknown) {
-      console.error("Failed to check missing components:", err);
-    }
-  }, []);
-
-  const [processingUrls, setProcessingUrls] = useState<Set<string>>(new Set());
-
-  const handleUrlOpen = useCallback(
-    async (url: string) => {
-      // Prevent duplicate processing of the same URL
-      if (processingUrls.has(url)) {
-        console.log("URL already being processed:", url);
-        return;
-      }
-
-      setProcessingUrls((prev) => new Set(prev).add(url));
-
-      try {
-        console.log("URL received for opening:", url);
-
-        // Always show profile selector for manual selection - never auto-open
-        // Replace any existing pending URL with the new one
-        setPendingUrls([{ id: Date.now().toString(), url }]);
-      } finally {
-        // Remove URL from processing set after a short delay to prevent rapid duplicates
-        setTimeout(() => {
-          setProcessingUrls((prev) => {
-            const next = new Set(prev);
-            next.delete(url);
-            return next;
-          });
-        }, 1000);
-      }
-    },
-    [processingUrls],
-  );
-
-  // Auto-update functionality - use the existing hook for compatibility
-  const updateNotifications = useUpdateNotifications();
-  const { checkForUpdates, isUpdating } = updateNotifications;
-
-  useAppUpdateNotifications();
-
-  // Check for startup URLs but only process them once
-  const [hasCheckedStartupUrl, setHasCheckedStartupUrl] = useState(false);
-  const checkCurrentUrl = useCallback(async () => {
-    if (hasCheckedStartupUrl) return;
-
-    try {
-      const currentUrl = await getCurrent();
-      if (currentUrl && currentUrl.length > 0) {
-        console.log("Startup URL detected:", currentUrl[0]);
-        void handleUrlOpen(currentUrl[0]);
-      }
-    } catch (error) {
-      console.error("Failed to check current URL:", error);
-    } finally {
-      setHasCheckedStartupUrl(true);
-    }
-  }, [handleUrlOpen, hasCheckedStartupUrl]);
-
-  const checkStartupPrompt = useCallback(async () => {
-    // Only check once during app startup to prevent reopening after dismissing notifications
-    if (hasCheckedStartupPrompt) return;
-
-    try {
-      const shouldShow = await invoke<boolean>(
-        "should_show_launch_on_login_prompt",
-      );
-      if (shouldShow) {
-        setLaunchOnLoginDialogOpen(true);
-      }
-    } catch (error) {
-      console.error("Failed to check startup prompt:", error);
-    } finally {
-      setHasCheckedStartupPrompt(true);
-    }
-  }, [hasCheckedStartupPrompt]);
-
-  // Handle profile errors from useProfileEvents hook
-  useEffect(() => {
-    if (profilesError) {
-      showErrorToast(profilesError);
-    }
-  }, [profilesError]);
-
-  // Handle group errors from useGroupEvents hook
-  useEffect(() => {
-    if (groupsError) {
-      showErrorToast(groupsError);
-    }
-  }, [groupsError]);
-
-  // Handle proxy errors from useProxyEvents hook
-  useEffect(() => {
-    if (proxiesError) {
-      showErrorToast(proxiesError);
-    }
-  }, [proxiesError]);
-
-  const checkAllPermissions = useCallback(async () => {
-    try {
-      // Wait for permissions to be initialized before checking
-      if (!isInitialized) {
-        return;
-      }
-
-      // Check if any permissions are not granted - prioritize missing permissions
-      if (!isMicrophoneAccessGranted) {
-        setCurrentPermissionType("microphone");
-        setPermissionDialogOpen(true);
-      } else if (!isCameraAccessGranted) {
-        setCurrentPermissionType("camera");
-        setPermissionDialogOpen(true);
-      }
-    } catch (error) {
-      console.error("Failed to check permissions:", error);
-    }
-  }, [isMicrophoneAccessGranted, isCameraAccessGranted, isInitialized]);
-
-  const checkNextPermission = useCallback(() => {
-    try {
-      if (!isMicrophoneAccessGranted) {
-        setCurrentPermissionType("microphone");
-        setPermissionDialogOpen(true);
-      } else if (!isCameraAccessGranted) {
-        setCurrentPermissionType("camera");
-        setPermissionDialogOpen(true);
+    for (const p of mergedProfiles) {
+      if ((p as any).is_cloud_only) {
+        counts.cloud++;
       } else {
-        setPermissionDialogOpen(false);
+        if (p.browser === "camoufox" || p.browser === "firefox") {
+          counts.camoufox++;
+        } else if (p.browser === "wayfern" || p.browser === "chromium") {
+          counts.wayfern++;
+        }
       }
-    } catch (error) {
-      console.error("Failed to check next permission:", error);
     }
-  }, [isMicrophoneAccessGranted, isCameraAccessGranted]);
+    return counts;
+  }, [mergedProfiles]);
 
-  const listenForUrlEvents = useCallback(async () => {
-    try {
-      // Listen for URL open events from the deep link handler (when app is already running)
-      await listen<string>("url-open-request", (event) => {
-        console.log("Received URL open request:", event.payload);
-        void handleUrlOpen(event.payload);
+  const filteredProfiles = useMemo(() => {
+    let f = mergedProfiles;
+    if (!selectedGroupId || selectedGroupId === "default")
+      f = f.filter((p: any) => !p.group_id);
+    else f = f.filter((p: any) => p.group_id === selectedGroupId);
+
+    // Browser filter
+    if (browserFilter === "cloud") {
+      f = f.filter((p: any) => p.is_cloud_only);
+    } else if (browserFilter !== "all") {
+      f = f.filter((p: any) => {
+        // Exclude cloud profiles from specific browser filters
+        if (p.is_cloud_only) return false;
+
+        if (browserFilter === "camoufox")
+          return p.browser === "camoufox" || p.browser === "firefox";
+        if (browserFilter === "wayfern")
+          return p.browser === "wayfern" || p.browser === "chromium";
+        return p.browser === browserFilter;
       });
+    }
 
-      // Listen for show profile selector events
-      await listen<string>("show-profile-selector", (event) => {
-        console.log("Received show profile selector request:", event.payload);
-        void handleUrlOpen(event.payload);
-      });
-
-      // Listen for show create profile dialog events
-      await listen<string>("show-create-profile-dialog", (event) => {
-        console.log(
-          "Received show create profile dialog request:",
-          event.payload,
-        );
-        showErrorToast(
-          "No profiles available. Please create a profile first before opening URLs.",
-        );
-        setCreateProfileDialogOpen(true);
-      });
-
-      // Listen for custom logo click events
-      const handleLogoUrlEvent = (event: CustomEvent) => {
-        console.log("Received logo URL event:", event.detail);
-        void handleUrlOpen(event.detail);
-      };
-
-      window.addEventListener(
-        "url-open-request",
-        handleLogoUrlEvent as EventListener,
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      f = f.filter(
+        (p: any) =>
+          p.name.toLowerCase().includes(q) || p.note?.toLowerCase().includes(q),
       );
-
-      // Return cleanup function
-      return () => {
-        window.removeEventListener(
-          "url-open-request",
-          handleLogoUrlEvent as EventListener,
-        );
-      };
-    } catch (error) {
-      console.error("Failed to setup URL listener:", error);
     }
-  }, [handleUrlOpen]);
+    return f;
+  }, [mergedProfiles, selectedGroupId, searchQuery, browserFilter]);
 
-  const handleConfigureCamoufox = useCallback((profile: BrowserProfile) => {
-    setCurrentProfileForCamoufoxConfig(profile);
-    setCamoufoxConfigDialogOpen(true);
-  }, []);
+  const sortedProfiles = useMemo(() => {
+    return [...filteredProfiles].sort((a, b) => {
+      const idA = a.odoo_id ? parseInt(a.odoo_id, 10) : 0;
+      const idB = b.odoo_id ? parseInt(b.odoo_id, 10) : 0;
+      if (idA !== idB) return idB - idA;
+      return ((b as any).created_at || 0) - ((a as any).created_at || 0);
+    });
+  }, [filteredProfiles]);
 
-  const handleSaveCamoufoxConfig = useCallback(
-    async (profile: BrowserProfile, config: CamoufoxConfig) => {
-      try {
-        await invoke("update_camoufox_config", {
-          profileId: profile.id,
-          config,
-        });
-        // No need to manually reload - useProfileEvents will handle the update
-        setCamoufoxConfigDialogOpen(false);
-      } catch (err: unknown) {
-        console.error("Failed to update camoufox config:", err);
-        showErrorToast(
-          `Failed to update camoufox config: ${JSON.stringify(err)}`,
-        );
-        throw err;
-      }
-    },
-    [],
-  );
+  const handleCreateProfile = async (d: any) => {
+    await invoke("create_browser_profile_new", {
+      ...d,
+      groupId:
+        d.groupId ||
+        (selectedGroupId !== "default" ? selectedGroupId : undefined),
+    });
+  };
 
-  const handleSaveWayfernConfig = useCallback(
-    async (profile: BrowserProfile, config: WayfernConfig) => {
-      try {
-        await invoke("update_wayfern_config", {
-          profileId: profile.id,
-          config,
-        });
-        // No need to manually reload - useProfileEvents will handle the update
-        setCamoufoxConfigDialogOpen(false);
-      } catch (err: unknown) {
-        console.error("Failed to update wayfern config:", err);
-        showErrorToast(
-          `Failed to update wayfern config: ${JSON.stringify(err)}`,
-        );
-        throw err;
-      }
-    },
-    [],
-  );
-
-  const handleCreateProfile = useCallback(
-    async (profileData: {
-      name: string;
-      browserStr: BrowserTypeString;
-      version: string;
-      releaseType: string;
-      proxyId?: string;
-      camoufoxConfig?: CamoufoxConfig;
-      wayfernConfig?: WayfernConfig;
-      groupId?: string;
-    }) => {
-      try {
-        await invoke<BrowserProfile>("create_browser_profile_new", {
-          name: profileData.name,
-          browserStr: profileData.browserStr,
-          version: profileData.version,
-          releaseType: profileData.releaseType,
-          proxyId: profileData.proxyId,
-          camoufoxConfig: profileData.camoufoxConfig,
-          wayfernConfig: profileData.wayfernConfig,
-          groupId:
-            profileData.groupId ||
-            (selectedGroupId !== "default" ? selectedGroupId : undefined),
-        });
-
-        // No need to manually reload - useProfileEvents will handle the update
-      } catch (error) {
-        showErrorToast(
-          `Failed to create profile: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-        throw error;
-      }
-    },
-    [selectedGroupId],
-  );
-
-  const launchProfile = useCallback(async (profile: BrowserProfile) => {
-    console.log("Starting launch for profile:", profile.name);
-
+  const launchProfile = async (profile: BrowserProfile) => {
     try {
-      const result = await invoke<BrowserProfile>("launch_browser_profile", {
-        profile,
-      });
-      console.log("Successfully launched profile:", result.name);
-    } catch (err: unknown) {
-      console.error("Failed to launch browser:", err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      showErrorToast(`Failed to launch browser: ${errorMessage}`);
-      // Re-throw the error so the table component can handle loading state cleanup
-      throw err;
+      await invoke("launch_browser_profile", { profile });
+    } catch (err: any) {
+      if (err.toString().includes("Browser app not found")) {
+        showToast({
+          type: "error",
+          title: `Trình duyệt ${profile.browser} chưa được tải`,
+          description: "Vui lòng tải về.",
+          action: {
+            label: "Tải ngay",
+            onClick: () =>
+              void downloadBrowser(profile.browser, profile.version),
+          },
+        });
+      } else showErrorToast(`Lỗi: ${err}`);
     }
-  }, []);
+  };
 
-  const handleCloneProfile = useCallback(async (profile: BrowserProfile) => {
+  const handleImportCloudProfile = async (cp: any) => {
+    const toastId = toast.loading("Đang nhập...");
     try {
-      await invoke<BrowserProfile>("clone_profile", {
-        profileId: profile.id,
-      });
-    } catch (err: unknown) {
-      console.error("Failed to clone profile:", err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      showErrorToast(`Failed to clone profile: ${errorMessage}`);
-    }
-  }, []);
+      // FIX: Lấy đúng Odoo ID thực sự, bỏ tiền tố "cloud-" nếu có
+      const odooId = String(cp.odoo_id || cp.id).replace("cloud-", "");
+      console.log("Importing cloud profile:", cp.name, "odoo_id:", odooId);
 
-  const handleDeleteProfile = useCallback(async (profile: BrowserProfile) => {
-    console.log("Attempting to delete profile:", profile.name);
+      const existingProfile = profiles.find((p) => p.odoo_id === odooId);
 
-    try {
-      // First check if the browser is running for this profile
-      const isRunning = await invoke<boolean>("check_browser_status", {
-        profile,
-      });
-
-      if (isRunning) {
-        showErrorToast(
-          "Cannot delete profile while browser is running. Please stop the browser first.",
-        );
+      if (existingProfile) {
+        console.log("Profile already exists locally:", existingProfile.name);
+        if (cp.profileUrl || cp.profile_url) {
+          toast.dismiss(toastId);
+          await handleDownloadWithProgress(
+            existingProfile.id,
+            cp.profileUrl || cp.profile_url,
+            cp.name,
+          );
+        } else {
+          toast.dismiss(toastId);
+          showErrorToast("Profile không có dữ liệu để tải về");
+        }
         return;
       }
 
-      // Attempt to delete the profile
-      await invoke("delete_profile", { profileId: profile.id });
-      console.log("Profile deletion command completed successfully");
-
-      // No need to manually reload - useProfileEvents will handle the update
-      console.log("Profile deleted successfully");
-    } catch (err: unknown) {
-      console.error("Failed to delete profile:", err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      showErrorToast(`Failed to delete profile: ${errorMessage}`);
-    }
-  }, []);
-
-  const handleRenameProfile = useCallback(
-    async (profileId: string, newName: string) => {
-      try {
-        await invoke("rename_profile", { profileId, newName });
-        // No need to manually reload - useProfileEvents will handle the update
-      } catch (err: unknown) {
-        console.error("Failed to rename profile:", err);
-        showErrorToast(`Failed to rename profile: ${JSON.stringify(err)}`);
-        throw err;
-      }
-    },
-    [],
-  );
-
-  const handleKillProfile = useCallback(async (profile: BrowserProfile) => {
-    console.log("Starting kill for profile:", profile.name);
-
-    try {
-      await invoke("kill_browser_profile", { profile });
-      console.log("Successfully killed profile:", profile.name);
-      // No need to manually reload - useProfileEvents will handle the update
-    } catch (err: unknown) {
-      console.error("Failed to kill browser:", err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      showErrorToast(`Failed to kill browser: ${errorMessage}`);
-      // Re-throw the error so the table component can handle loading state cleanup
-      throw err;
-    }
-  }, []);
-
-  const handleDeleteSelectedProfiles = useCallback(
-    async (profileIds: string[]) => {
-      try {
-        await invoke("delete_selected_profiles", { profileIds });
-        // No need to manually reload - useProfileEvents will handle the update
-      } catch (err: unknown) {
-        console.error("Failed to delete selected profiles:", err);
-        showErrorToast(
-          `Failed to delete selected profiles: ${JSON.stringify(err)}`,
-        );
-      }
-    },
-    [],
-  );
-
-  const handleAssignProfilesToGroup = useCallback((profileIds: string[]) => {
-    setSelectedProfilesForGroup(profileIds);
-    setGroupAssignmentDialogOpen(true);
-  }, []);
-
-  const handleBulkDelete = useCallback(() => {
-    if (selectedProfiles.length === 0) return;
-    setShowBulkDeleteConfirmation(true);
-  }, [selectedProfiles]);
-
-  const confirmBulkDelete = useCallback(async () => {
-    if (selectedProfiles.length === 0) return;
-
-    setIsBulkDeleting(true);
-    try {
-      await invoke("delete_selected_profiles", {
-        profileIds: selectedProfiles,
-      });
-      // No need to manually reload - useProfileEvents will handle the update
-      setSelectedProfiles([]);
-      setShowBulkDeleteConfirmation(false);
-    } catch (error) {
-      console.error("Failed to delete selected profiles:", error);
-      showErrorToast(
-        `Failed to delete selected profiles: ${JSON.stringify(error)}`,
-      );
+      console.log("Profile doesn't exist, importing...");
+      // Profile doesn't exist, import it
+      const createdAt = cp.createdAt || cp.create_date;
+      const zs = {
+        id: odooId, // Đảm bảo dùng ID sạch sẽ
+        name: cp.name,
+        fingerprint: {
+          userAgent: cp.userAgent || cp.user_agent || "",
+          timezone: cp.timezone || "Asia/Ho_Chi_Minh",
+          language: cp.language || "vi-VN",
+          platform: cp.platform || undefined,
+        },
+        status: "synced",
+        version: "v135.0.1-beta.24",
+        proxy:
+          cp.proxy_ids && cp.proxy_ids.length > 0
+            ? {
+                protocol: cp.proxy_ids[0].giaothuc,
+                host: cp.proxy_ids[0].ip,
+                port: cp.proxy_ids[0].port,
+                username: cp.proxy_ids[0].tendangnhap,
+                password: cp.proxy_ids[0].matkhau,
+              }
+            : undefined,
+        createdAt,
+        localPath: cp.localPath || cp.local_path || "S3 Cloud", // Ghi rõ nguồn tải
+        profileUrl: cp.profileUrl || cp.profile_url || undefined,
+      };
+      console.log("Calling import_zsmkt_profiles_batch with:", zs);
+      await invoke("import_zsmkt_profiles_batch", { zsProfiles: [zs] });
+      console.log("Import completed, reloading odoo profiles...");
+      await loadOdooProfiles();
+      showSuccessToast("Xong!");
+    } catch (error: any) {
+      console.error("Import error:", error);
+      toast.dismiss(toastId);
+      showErrorToast(`Lỗi: ${error}`);
     } finally {
-      setIsBulkDeleting(false);
+      toast.dismiss(toastId);
     }
-  }, [selectedProfiles]);
+  };
 
-  const handleBulkGroupAssignment = useCallback(() => {
-    if (selectedProfiles.length === 0) return;
-    handleAssignProfilesToGroup(selectedProfiles);
-    setSelectedProfiles([]);
-  }, [selectedProfiles, handleAssignProfilesToGroup]);
+  const [uploadingProfiles, setUploadingProfiles] = useState<Set<string>>(
+    new Set(),
+  );
 
-  const handleAssignProfilesToProxy = useCallback((profileIds: string[]) => {
-    setSelectedProfilesForProxy(profileIds);
-    setProxyAssignmentDialogOpen(true);
-  }, []);
+  const handleUploadToOdoo = async (
+    profile: BrowserProfile,
+    allowCreate = true,
+  ) => {
+    // FIX: Khi dừng browser, event profile-running-changed có thể chưa cập nhật kịp
+    // nên ta bỏ qua check runningProfiles.has ở đây nếu là gọi từ luồng đóng browser.
 
-  const handleBulkProxyAssignment = useCallback(() => {
-    if (selectedProfiles.length === 0) return;
-    handleAssignProfilesToProxy(selectedProfiles);
-    setSelectedProfiles([]);
-  }, [selectedProfiles, handleAssignProfilesToProxy]);
-
-  const handleBulkCopyCookies = useCallback(() => {
-    if (selectedProfiles.length === 0) return;
-    const eligibleProfiles = profiles.filter(
-      (p) =>
-        selectedProfiles.includes(p.id) &&
-        (p.browser === "wayfern" || p.browser === "camoufox"),
-    );
-    if (eligibleProfiles.length === 0) {
-      showErrorToast(
-        "Cookie copy only works with Wayfern and Camoufox profiles",
+    // Kiểm tra nếu đang upload
+    if (uploadingProfiles.has(profile.id)) {
+      console.log(
+        `Profile "${profile.name}" is already uploading, skipping automatic upload.`,
       );
       return;
     }
-    setSelectedProfilesForCookies(eligibleProfiles.map((p) => p.id));
-    setCookieCopyDialogOpen(true);
-  }, [selectedProfiles, profiles]);
 
-  const handleCopyCookiesToProfile = useCallback((profile: BrowserProfile) => {
-    setSelectedProfilesForCookies([profile.id]);
-    setCookieCopyDialogOpen(true);
-  }, []);
-
-  const handleGroupAssignmentComplete = useCallback(async () => {
-    // No need to manually reload - useProfileEvents will handle the update
-    setGroupAssignmentDialogOpen(false);
-    setSelectedProfilesForGroup([]);
-  }, []);
-
-  const handleProxyAssignmentComplete = useCallback(async () => {
-    // No need to manually reload - useProfileEvents will handle the update
-    setProxyAssignmentDialogOpen(false);
-    setSelectedProfilesForProxy([]);
-  }, []);
-
-  const handleGroupManagementComplete = useCallback(async () => {
-    // No need to manually reload - useProfileEvents will handle the update
-  }, []);
-
-  const handleOpenProfileSyncDialog = useCallback((profile: BrowserProfile) => {
-    setCurrentProfileForSync(profile);
-    setProfileSyncDialogOpen(true);
-  }, []);
-
-  const handleToggleProfileSync = useCallback(
-    async (profile: BrowserProfile) => {
-      try {
-        await invoke("set_profile_sync_enabled", {
-          profileId: profile.id,
-          enabled: !profile.sync_enabled,
-        });
-        showSuccessToast(
-          profile.sync_enabled ? "Sync disabled" : "Sync enabled",
-          {
-            description: profile.sync_enabled
-              ? "Profile sync has been disabled"
-              : "Profile sync has been enabled",
-          },
-        );
-      } catch (error) {
-        console.error("Failed to toggle sync:", error);
-        showErrorToast("Failed to update sync settings");
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    // Check for startup default browser prompt
-    void checkStartupPrompt();
-
-    // Listen for URL open events and get cleanup function
-    const setupListeners = async () => {
-      const cleanup = await listenForUrlEvents();
-      return cleanup;
-    };
-
-    let cleanup: (() => void) | undefined;
-    setupListeners().then((cleanupFn) => {
-      cleanup = cleanupFn;
-    });
-
-    // Check for startup URLs (when app was launched as default browser)
-    void checkCurrentUrl();
-
-    // Set up periodic update checks (every 30 minutes)
-    const updateInterval = setInterval(
-      () => {
-        void checkForUpdates();
-      },
-      30 * 60 * 1000,
+    const toastId = toast.loading(
+      `Đang tự động đẩy "${profile.name}" lên Odoo...`,
     );
+    setUploadingProfiles((prev) => new Set(prev).add(profile.id));
 
-    // Check for missing binaries after initial profile load
-    if (!profilesLoading && profiles.length > 0) {
-      void checkMissingBinaries();
-    }
-
-    return () => {
-      clearInterval(updateInterval);
-      if (cleanup) {
-        cleanup();
-      }
-    };
-  }, [
-    checkForUpdates,
-    checkStartupPrompt,
-    listenForUrlEvents,
-    checkCurrentUrl,
-    checkMissingBinaries,
-    profilesLoading,
-    profiles.length,
-  ]);
-
-  // Show deprecation warning for unsupported profiles (with names)
-  useEffect(() => {
-    if (profiles.length === 0) return;
-
-    const deprecatedProfiles = profiles.filter(
-      (p) => p.release_type === "nightly" && p.browser !== "firefox-developer",
-    );
-
-    if (deprecatedProfiles.length > 0) {
-      const deprecatedNames = deprecatedProfiles.map((p) => p.name).join(", ");
-
-      // Use a stable id to avoid duplicate toasts on re-renders
-      showToast({
-        id: "deprecated-profiles-warning",
-        type: "error",
-        title: "Some profiles will be deprecated soon",
-        description: `The following profiles will be deprecated soon: ${deprecatedNames}. Nightly profiles (except Firefox Developers Edition) will be removed in upcoming versions. Please check GitHub for migration instructions.`,
-        duration: 15000,
-        action: {
-          label: "Learn more",
-          onClick: () => {
-            const event = new CustomEvent("url-open-request", {
-              detail: "https://github.com/zhom/donutbrowser/discussions/66",
-            });
-            window.dispatchEvent(event);
-          },
-        },
+    try {
+      const profileUrl = await invoke<string>("upload_profile_to_odoo_s3", {
+        profileId: profile.id,
+        baseUrl: localStorage.getItem("odoo_url") || "",
+        sessionId: localStorage.getItem("session_id") || "",
       });
-    }
-  }, [profiles]);
 
-  // Show warning for non-wayfern/camoufox profiles (support ending March 1, 2026)
-  useEffect(() => {
-    if (profiles.length === 0) return;
-
-    const unsupportedProfiles = profiles.filter(
-      (p) => p.browser !== "wayfern" && p.browser !== "camoufox",
-    );
-
-    if (unsupportedProfiles.length > 0) {
-      const unsupportedNames = unsupportedProfiles
-        .map((p) => p.name)
-        .join(", ");
-
-      showToast({
-        id: "browser-support-ending-warning",
-        type: "error",
-        title: "Browser support ending soon",
-        description: `Support for the following profiles will be removed on March 1, 2026: ${unsupportedNames}. Please migrate to Wayfern or Camoufox profiles.`,
-        duration: 15000,
-        action: {
-          label: "Learn more",
-          onClick: () => {
-            const event = new CustomEvent("url-open-request", {
-              detail: "https://github.com/zhom/donutbrowser/discussions",
-            });
-            window.dispatchEvent(event);
-          },
-        },
+      // Cập nhật profile_url vào profile
+      await invoke("update_profile_url", {
+        profileId: profile.id,
+        profileUrl: profileUrl,
       });
-    }
-  }, [profiles]);
 
-  // Re-check Wayfern terms when a browser download completes
-  useEffect(() => {
-    let unlisten: (() => void) | null = null;
-    const setup = async () => {
-      unlisten = await listen<{ stage: string }>(
-        "download-progress",
-        (event) => {
-          if (event.payload.stage === "completed") {
-            void checkTerms();
+      console.log(
+        "Checking odoo_id for sync:",
+        profile.odoo_id,
+        "type:",
+        typeof profile.odoo_id,
+      );
+
+      // FIX: Cập nhật thông tin lên Odoo server sau khi upload thành công
+      if (profile.odoo_id && profile.odoo_id !== "null") {
+        // TRƯỜNG HỢP 1: Đã có ID trên Odoo -> Cập nhật URL mới
+        try {
+          const odooIdNum = Number.parseInt(profile.odoo_id, 10);
+          console.log(`Calling update_odoo_profile for ID: ${odooIdNum}...`);
+
+          // Tìm dữ liệu Odoo gốc để giữ lại các trường khác (userAgent, timezone, etc.)
+          const originalOdoo = odooProfiles.find(
+            (op) => Number(op.id) === odooIdNum,
+          );
+
+          await invoke("update_odoo_profile", {
+            profile: {
+              ...(originalOdoo || {}), // Lấy tất cả dữ liệu cũ làm base
+              id: odooIdNum,
+              name: profile.name,
+              profileUrl: profileUrl,
+            },
+          });
+          console.log("✅ Updated profile URL on Odoo server");
+        } catch (odooErr) {
+          console.error("❌ Failed to update Odoo server:", odooErr);
+        }
+      } else if (allowCreate) {
+        // TRƯỜNG HỢP 2: Profile local chưa có trên Odoo VÀ được phép tạo mới -> Tạo record trên server
+        try {
+          console.log("Creating new profile record on Odoo server...");
+          // Slugify tên profile để tạo localPath
+          const slugify = (s: string) =>
+            s
+              .normalize("NFD")
+              .replace(/\p{Diacritic}/gu, "")
+              .toLowerCase()
+              .trim()
+              .replace(/[^a-z0-9\s-]/g, "")
+              .replace(/\s+/g, "_");
+
+          const createResult = await invoke<any>("create_odoo_profile", {
+            profile: {
+              id: 0,
+              name: profile.name,
+              profileUrl: profileUrl,
+              userAgent: (profile as any).user_agent || "",
+              localPath: `profiles/${slugify(profile.name)}`,
+            },
+          });
+
+          const newOdooId = String(createResult.id || createResult);
+          if (newOdooId && newOdooId !== "null" && newOdooId !== "0") {
+            console.log("✅ New Odoo ID created:", newOdooId);
+            await invoke("update_profile_odoo_id", {
+              profileId: profile.id,
+              odooId: newOdooId,
+            });
           }
-        },
-      );
-    };
-    void setup();
-    return () => {
-      if (unlisten) unlisten();
-    };
-  }, [checkTerms]);
+        } catch (createErr) {
+          console.error("Failed to create profile on Odoo server:", createErr);
+        }
+      } else {
+        // Không có odoo_id và không được tạo mới (ví dụ: khi dừng browser)
+        console.log(
+          "⏭️ Profile local (không có odoo_id) - bỏ qua tạo mới (allowCreate=false)",
+        );
+      }
 
-  // Check permissions when they are initialized
-  useEffect(() => {
-    if (isInitialized) {
-      void checkAllPermissions();
-    }
-  }, [isInitialized, checkAllPermissions]);
+      // Reload để cập nhật UI trạng thái "Synced"
+      void loadOdooProfiles();
 
-  // Filter data by selected group and search query
-  const filteredProfiles = useMemo(() => {
-    let filtered = profiles;
-
-    // Filter by group
-    if (!selectedGroupId || selectedGroupId === "default") {
-      filtered = profiles.filter((profile) => !profile.group_id);
-    } else {
-      filtered = profiles.filter(
-        (profile) => profile.group_id === selectedGroupId,
-      );
-    }
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter((profile) => {
-        // Search in profile name
-        if (profile.name.toLowerCase().includes(query)) return true;
-
-        // Search in note
-        if (profile.note?.toLowerCase().includes(query)) return true;
-
-        // Search in tags
-        if (profile.tags?.some((tag) => tag.toLowerCase().includes(query)))
-          return true;
-
-        return false;
+      toast.dismiss(toastId);
+      showSuccessToast(`Đã đẩy "${profile.name}" lên Odoo thành công!`);
+    } catch (err: any) {
+      toast.dismiss(toastId);
+      showErrorToast(`Lỗi khi đẩy lên: ${err}`);
+    } finally {
+      setUploadingProfiles((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(profile.id);
+        return newSet;
       });
     }
+  };
 
-    return filtered;
-  }, [profiles, selectedGroupId, searchQuery]);
-
-  // Update loading states
   const isLoading = profilesLoading || groupsLoading || proxiesLoading;
 
   return (
-    <div className="grid items-center justify-items-center min-h-screen gap-8 font-(family-name:--font-geist-sans) bg-background">
-      <main className="flex flex-col items-center w-full max-w-3xl">
-        <div className="w-full">
-          <HomeHeader
-            onCreateProfileDialogOpen={setCreateProfileDialogOpen}
-            onGroupManagementDialogOpen={setGroupManagementDialogOpen}
-            onImportProfileDialogOpen={setImportProfileDialogOpen}
-            onProxyManagementDialogOpen={setProxyManagementDialogOpen}
-            onSettingsDialogOpen={setSettingsDialogOpen}
-            onSyncConfigDialogOpen={setSyncConfigDialogOpen}
-            onIntegrationsDialogOpen={setIntegrationsDialogOpen}
-            searchQuery={searchQuery}
-            onSearchQueryChange={setSearchQuery}
-          />
-        </div>
-        <div className="w-full mt-2.5">
+    <div className="grid items-center justify-items-center min-h-screen bg-background">
+      <main className="flex flex-col items-center w-full max-w-[1300px] h-screen px-4 py-4">
+        <HomeHeader
+          onCreateProfileDialogOpen={setCreateProfileDialogOpen}
+          onGroupManagementDialogOpen={setGroupManagementDialogOpen}
+          onImportProfileDialogOpen={setImportProfileDialogOpen}
+          onZsmktImportDialogOpen={setZsmktImportDialogOpen}
+          onOdooImportDialogOpen={setOdooImportDialogOpen}
+          onProxyManagementDialogOpen={setProxyManagementDialogOpen}
+          onSettingsDialogOpen={setSettingsDialogOpen}
+          onSyncConfigDialogOpen={setSyncConfigDialogOpen}
+          onIntegrationsDialogOpen={setIntegrationsDialogOpen}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+        />
+        <div className="w-full mt-2.5 flex-1 flex flex-col min-h-0">
           <GroupBadges
             selectedGroupId={selectedGroupId}
-            onGroupSelect={handleSelectGroup}
+            onGroupSelect={setSelectedGroupId}
             groups={groupsData}
             isLoading={isLoading}
           />
-          <ProfilesDataTable
-            profiles={filteredProfiles}
-            onLaunchProfile={launchProfile}
-            onKillProfile={handleKillProfile}
-            onCloneProfile={handleCloneProfile}
-            onDeleteProfile={handleDeleteProfile}
-            onRenameProfile={handleRenameProfile}
-            onConfigureCamoufox={handleConfigureCamoufox}
-            onCopyCookiesToProfile={handleCopyCookiesToProfile}
-            runningProfiles={runningProfiles}
-            isUpdating={isUpdating}
-            onDeleteSelectedProfiles={handleDeleteSelectedProfiles}
-            onAssignProfilesToGroup={handleAssignProfilesToGroup}
-            selectedGroupId={selectedGroupId}
-            selectedProfiles={selectedProfiles}
-            onSelectedProfilesChange={setSelectedProfiles}
-            onBulkDelete={handleBulkDelete}
-            onBulkGroupAssignment={handleBulkGroupAssignment}
-            onBulkProxyAssignment={handleBulkProxyAssignment}
-            onBulkCopyCookies={handleBulkCopyCookies}
-            onOpenProfileSyncDialog={handleOpenProfileSyncDialog}
-            onToggleProfileSync={handleToggleProfileSync}
+          <BrowserFilter
+            selectedFilter={browserFilter}
+            onFilterSelect={setBrowserFilter}
+            counts={browserCounts}
           />
+          <div className="flex-1 min-h-0 mt-2">
+            <ProfilesDataTableVirtual
+              profiles={sortedProfiles as any}
+              onLaunchProfile={launchProfile}
+              onKillProfile={async (p) => {
+                try {
+                  await invoke("kill_browser_profile", { profile: p });
+                  // Đợi 1 giây để browser giải phóng file hoàn toàn
+                  // allowCreate=false: khi dừng browser không tạo mới profile trên Odoo
+                  setTimeout(() => {
+                    void handleUploadToOdoo(p as any, false);
+                  }, 1500);
+                } catch (err) {
+                  showErrorToast(`Lỗi khi dừng: ${err}`);
+                }
+              }}
+              onCloneProfile={async (p) => {
+                const toastId = toast.loading(`Đang nhân bản "${p.name}"...`);
+                try {
+                  await invoke("clone_profile", { profileId: p.id });
+                  toast.dismiss(toastId);
+                  showSuccessToast(`Đã nhân bản "${p.name}" thành công!`);
+                } catch (err) {
+                  toast.dismiss(toastId);
+                  showErrorToast(`Lỗi nhân bản: ${err}`);
+                }
+              }}
+              onDeleteProfile={async (p, deleteFromServer) => {
+                // Nếu user chọn xóa cả server và profile có odoo_id
+                if (deleteFromServer && p.odoo_id && p.odoo_id !== "null") {
+                  try {
+                    const odooIdNum = Number.parseInt(p.odoo_id, 10);
+                    console.log(
+                      `Deleting profile from Odoo server, ID: ${odooIdNum}...`,
+                    );
+                    await invoke("delete_odoo_profile", { id: odooIdNum });
+                    console.log("✅ Deleted from Odoo server");
+                  } catch (err) {
+                    console.error("❌ Failed to delete from Odoo server:", err);
+                    showErrorToast(`Lỗi xóa trên server: ${err}`);
+                  }
+                }
+                // Xóa local
+                await invoke("delete_profile", { profileId: p.id });
+              }}
+              onRenameProfile={(id, newName) =>
+                invoke("rename_profile", { profileId: id, newName })
+              }
+              onConfigureCamoufox={(p) => {
+                setCurrentProfileForCamoufoxConfig(p);
+                setCamoufoxConfigDialogOpen(true);
+              }}
+              runningProfiles={runningProfiles}
+              isUpdating={(_) => false}
+              onDeleteSelectedProfiles={(ids) =>
+                invoke("delete_selected_profiles", { profileIds: ids })
+              }
+              onAssignProfilesToGroup={(ids) => {
+                setSelectedProfilesForGroup(ids);
+                setGroupAssignmentDialogOpen(true);
+              }}
+              selectedGroupId={selectedGroupId}
+              selectedProfiles={selectedProfiles}
+              onSelectedProfilesChange={setSelectedProfiles}
+              onUploadToOdoo={handleUploadToOdoo}
+              uploadingProfiles={uploadingProfiles}
+              onDownloadFromOdoo={async (p) => {
+                if (p.profile_url) {
+                  await handleDownloadWithProgress(p.id, p.profile_url, p.name);
+                }
+              }}
+              onImportCloudProfile={handleImportCloudProfile}
+            />
+          </div>
         </div>
       </main>
-
       <CreateProfileDialog
         isOpen={createProfileDialogOpen}
-        onClose={() => {
-          setCreateProfileDialogOpen(false);
-        }}
+        onClose={() => setCreateProfileDialogOpen(false)}
         onCreateProfile={handleCreateProfile}
         selectedGroupId={selectedGroupId}
       />
-
       <SettingsDialog
         isOpen={settingsDialogOpen}
-        onClose={() => {
-          setSettingsDialogOpen(false);
-        }}
-        onIntegrationsOpen={() => {
-          setSettingsDialogOpen(false);
-          setIntegrationsDialogOpen(true);
-        }}
+        onClose={() => setSettingsDialogOpen(false)}
+        onIntegrationsOpen={() => setIntegrationsDialogOpen(true)}
       />
-
-      <IntegrationsDialog
-        isOpen={integrationsDialogOpen}
-        onClose={() => {
-          setIntegrationsDialogOpen(false);
-        }}
+      <OdooImportDialog
+        isOpen={odooImportDialogOpen}
+        onClose={() => setOdooImportDialogOpen(false)}
       />
-
-      <ImportProfileDialog
-        isOpen={importProfileDialogOpen}
-        onClose={() => {
-          setImportProfileDialogOpen(false);
-        }}
+      <ZsMktImportDialog
+        isOpen={zsmktImportDialogOpen}
+        onClose={() => setZsmktImportDialogOpen(false)}
       />
-
-      <ProxyManagementDialog
-        isOpen={proxyManagementDialogOpen}
-        onClose={() => {
-          setProxyManagementDialogOpen(false);
-        }}
-      />
-
-      {pendingUrls.map((pendingUrl) => (
-        <ProfileSelectorDialog
-          key={pendingUrl.id}
-          isOpen={true}
-          onClose={() => {
-            setPendingUrls((prev) =>
-              prev.filter((u) => u.id !== pendingUrl.id),
-            );
-          }}
-          url={pendingUrl.url}
-          isUpdating={isUpdating}
-          runningProfiles={runningProfiles}
-        />
-      ))}
-
-      <PermissionDialog
-        isOpen={permissionDialogOpen}
-        onClose={() => {
-          setPermissionDialogOpen(false);
-        }}
-        permissionType={currentPermissionType}
-        onPermissionGranted={checkNextPermission}
-      />
-
-      <CamoufoxConfigDialog
-        isOpen={camoufoxConfigDialogOpen}
-        onClose={() => {
-          setCamoufoxConfigDialogOpen(false);
-        }}
-        profile={currentProfileForCamoufoxConfig}
-        onSave={handleSaveCamoufoxConfig}
-        onSaveWayfern={handleSaveWayfernConfig}
-        isRunning={
-          currentProfileForCamoufoxConfig
-            ? runningProfiles.has(currentProfileForCamoufoxConfig.id)
-            : false
-        }
-      />
-
-      <GroupManagementDialog
-        isOpen={groupManagementDialogOpen}
-        onClose={() => {
-          setGroupManagementDialogOpen(false);
-        }}
-        onGroupManagementComplete={handleGroupManagementComplete}
-      />
-
       <GroupAssignmentDialog
         isOpen={groupAssignmentDialogOpen}
-        onClose={() => {
-          setGroupAssignmentDialogOpen(false);
-        }}
+        onClose={() => setGroupAssignmentDialogOpen(false)}
         selectedProfiles={selectedProfilesForGroup}
-        onAssignmentComplete={handleGroupAssignmentComplete}
+        onAssignmentComplete={() => setGroupAssignmentDialogOpen(false)}
         profiles={profiles}
       />
-
-      <ProxyAssignmentDialog
-        isOpen={proxyAssignmentDialogOpen}
-        onClose={() => {
-          setProxyAssignmentDialogOpen(false);
-        }}
-        selectedProfiles={selectedProfilesForProxy}
-        onAssignmentComplete={handleProxyAssignmentComplete}
-        profiles={profiles}
-        storedProxies={storedProxies}
-      />
-
-      <CookieCopyDialog
-        isOpen={cookieCopyDialogOpen}
-        onClose={() => {
-          setCookieCopyDialogOpen(false);
-          setSelectedProfilesForCookies([]);
-        }}
-        selectedProfiles={selectedProfilesForCookies}
-        profiles={profiles}
-        runningProfiles={runningProfiles}
-        onCopyComplete={() => setSelectedProfilesForCookies([])}
-      />
-
       <DeleteConfirmationDialog
         isOpen={showBulkDeleteConfirmation}
         onClose={() => setShowBulkDeleteConfirmation(false)}
-        onConfirm={confirmBulkDelete}
-        title="Delete Selected Profiles"
-        description={`This action cannot be undone. This will permanently delete ${selectedProfiles.length} profile${selectedProfiles.length !== 1 ? "s" : ""} and all associated data.`}
-        confirmButtonText={`Delete ${selectedProfiles.length} Profile${selectedProfiles.length !== 1 ? "s" : ""}`}
-        isLoading={isBulkDeleting}
-        profileIds={selectedProfiles}
-        profiles={profiles.map((p) => ({ id: p.id, name: p.name }))}
-      />
-
-      <SyncConfigDialog
-        isOpen={syncConfigDialogOpen}
-        onClose={() => setSyncConfigDialogOpen(false)}
-      />
-
-      <ProfileSyncDialog
-        isOpen={profileSyncDialogOpen}
-        onClose={() => {
-          setProfileSyncDialogOpen(false);
-          setCurrentProfileForSync(null);
-        }}
-        profile={currentProfileForSync}
-        onSyncConfigOpen={() => setSyncConfigDialogOpen(true)}
-      />
-
-      {/* Wayfern Terms and Conditions Dialog - shown if terms not accepted */}
-      <WayfernTermsDialog
-        isOpen={!termsLoading && termsAccepted === false}
-        onAccepted={checkTerms}
-      />
-
-      {/* Commercial Trial Modal - shown once when trial expires */}
-      <CommercialTrialModal
-        isOpen={
-          !termsLoading &&
-          termsAccepted === true &&
-          trialStatus?.type === "Expired" &&
-          !trialAcknowledged
+        onConfirm={() =>
+          invoke("delete_selected_profiles", { profileIds: selectedProfiles })
         }
-        onClose={checkTrialStatus}
+        title="Xóa Profile"
+        description="Xóa các profile đã chọn?"
+        confirmButtonText="Xóa"
+        isLoading={isBulkDeleting}
       />
-
-      {/* Launch on Login Dialog - shown on every startup until enabled or declined */}
-      <LaunchOnLoginDialog
-        isOpen={launchOnLoginDialogOpen}
-        onClose={() => setLaunchOnLoginDialogOpen(false)}
+      <CamoufoxConfigDialog
+        isOpen={camoufoxConfigDialogOpen}
+        onClose={() => setCamoufoxConfigDialogOpen(false)}
+        profile={currentProfileForCamoufoxConfig}
+        onSave={(p, c) =>
+          invoke("update_camoufox_config", { profileId: p.id, config: c })
+        }
+        isRunning={false}
+      />
+      <GroupManagementDialog
+        isOpen={groupManagementDialogOpen}
+        onClose={() => setGroupManagementDialogOpen(false)}
+        onGroupManagementComplete={() => {}}
+      />
+      <ProxyManagementDialog
+        isOpen={proxyManagementDialogOpen}
+        onClose={() => setProxyManagementDialogOpen(false)}
       />
     </div>
   );

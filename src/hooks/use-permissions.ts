@@ -33,7 +33,7 @@ export function usePermissions(): UsePermissionsReturn {
   const [isCameraAccessGranted, setIsCameraAccessGranted] = useState(false);
   const [currentPlatform, setCurrentPlatform] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const _intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check permissions status
   const checkPermissions = useCallback(async () => {
@@ -58,10 +58,16 @@ export function usePermissions(): UsePermissionsReturn {
 
         setIsMicrophoneAccessGranted(micGranted);
         setIsCameraAccessGranted(camGranted);
-        setIsInitialized(true);
+      } else {
+        // Plugin not found or failed to load - assume granted to avoid blocking user
+        setIsMicrophoneAccessGranted(true);
+        setIsCameraAccessGranted(true);
       }
-    } catch (error) {
-      console.error("Failed to check permissions on macOS:", error);
+      setIsInitialized(true);
+    } catch (_error) {
+      // If plugin is not found, don't log as error, just proceed
+      setIsMicrophoneAccessGranted(true);
+      setIsCameraAccessGranted(true);
       setIsInitialized(true);
     }
   }, [currentPlatform]);
@@ -145,24 +151,15 @@ export function usePermissions(): UsePermissionsReturn {
     initializePlatform().catch(console.error);
   }, []);
 
-  // Set up interval checking when platform is determined
+  // Set up checking when platform is determined
   useEffect(() => {
     if (!currentPlatform) return;
 
     // Initial check
     void checkPermissions();
 
-    // Set up 500ms interval for checking permissions
-    intervalRef.current = setInterval(() => {
-      void checkPermissions();
-    }, 500);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
+    // Removed the 500ms interval polling to prevent network log flooding
+    // Permissions will only be checked once on mount or when requested manually
   }, [currentPlatform, checkPermissions]);
 
   return {

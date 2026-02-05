@@ -2,7 +2,16 @@ import { useTranslation } from "react-i18next";
 import { FaDownload } from "react-icons/fa";
 import { FiWifi } from "react-icons/fi";
 import { GoGear, GoKebabHorizontal, GoPlus } from "react-icons/go";
-import { LuCloud, LuPlug, LuSearch, LuUsers, LuX } from "react-icons/lu";
+import {
+  LuCloud,
+  LuLogOut,
+  LuPlug,
+  LuSearch,
+  LuUser,
+  LuUsers,
+  LuX,
+} from "react-icons/lu";
+import { useAuth } from "@/providers/auth-provider";
 import { Logo } from "./icons/logo";
 import { Button } from "./ui/button";
 import { CardTitle } from "./ui/card";
@@ -20,6 +29,8 @@ type Props = {
   onProxyManagementDialogOpen: (open: boolean) => void;
   onGroupManagementDialogOpen: (open: boolean) => void;
   onImportProfileDialogOpen: (open: boolean) => void;
+  onZsmktImportDialogOpen: (open: boolean) => void;
+  onOdooImportDialogOpen: (open: boolean) => void;
   onCreateProfileDialogOpen: (open: boolean) => void;
   onSyncConfigDialogOpen: (open: boolean) => void;
   onIntegrationsDialogOpen: (open: boolean) => void;
@@ -32,6 +43,8 @@ const HomeHeader = ({
   onProxyManagementDialogOpen,
   onGroupManagementDialogOpen,
   onImportProfileDialogOpen,
+  onZsmktImportDialogOpen,
+  onOdooImportDialogOpen,
   onCreateProfileDialogOpen,
   onSyncConfigDialogOpen,
   onIntegrationsDialogOpen,
@@ -39,6 +52,7 @@ const HomeHeader = ({
   onSearchQueryChange,
 }: Props) => {
   const { t } = useTranslation();
+  const { isLoggedIn, logout, username } = useAuth();
   const handleLogoClick = () => {
     // Trigger the same URL handling logic as if the URL came from the system
     const event = new CustomEvent("url-open-request", {
@@ -47,7 +61,7 @@ const HomeHeader = ({
     window.dispatchEvent(event);
   };
   return (
-    <div className="flex justify-between items-center mt-6">
+    <div className="flex justify-between items-center mt-2 w-full px-0">
       <div className="flex gap-3 items-center">
         <button
           type="button"
@@ -66,7 +80,7 @@ const HomeHeader = ({
             placeholder={t("header.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => onSearchQueryChange(e.target.value)}
-            className="pr-8 pl-10 w-48"
+            className="pr-8 pl-10 w-96"
           />
           <LuSearch className="absolute left-3 top-1/2 w-4 h-4 transform -translate-y-1/2 text-muted-foreground" />
           {searchQuery && (
@@ -80,6 +94,42 @@ const HomeHeader = ({
             </button>
           )}
         </div>
+        {isLoggedIn && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-[36px] px-2 gap-2"
+                      >
+                        <LuUser className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium max-w-[120px] truncate">
+                          {username || "User"}
+                        </span>
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {t("header.menu.odooAccount")}
+                  </TooltipContent>
+                </Tooltip>
+              </span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => void logout()}
+                className="text-destructive"
+              >
+                <LuLogOut className="mr-2 w-4 h-4" />
+                {t("header.menu.logoutOdoo")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <span>
@@ -108,6 +158,7 @@ const HomeHeader = ({
               <GoGear className="mr-2 w-4 h-4" />
               {t("header.menu.settings")}
             </DropdownMenuItem>
+            {/* Tạm ẩn Proxy
             <DropdownMenuItem
               onClick={() => {
                 onProxyManagementDialogOpen(true);
@@ -116,6 +167,7 @@ const HomeHeader = ({
               <FiWifi className="mr-2 w-4 h-4" />
               {t("header.menu.proxies")}
             </DropdownMenuItem>
+            */}
             <DropdownMenuItem
               onClick={() => {
                 onGroupManagementDialogOpen(true);
@@ -124,6 +176,7 @@ const HomeHeader = ({
               <LuUsers className="mr-2 w-4 h-4" />
               {t("header.menu.groups")}
             </DropdownMenuItem>
+            {/* Tạm ẩn Dịch vụ đồng bộ
             <DropdownMenuItem
               onClick={() => {
                 onSyncConfigDialogOpen(true);
@@ -132,6 +185,8 @@ const HomeHeader = ({
               <LuCloud className="mr-2 w-4 h-4" />
               {t("header.menu.syncService")}
             </DropdownMenuItem>
+            */}
+            {/* Tạm ẩn Tích hợp
             <DropdownMenuItem
               onClick={() => {
                 onIntegrationsDialogOpen(true);
@@ -140,6 +195,28 @@ const HomeHeader = ({
               <LuPlug className="mr-2 w-4 h-4" />
               {t("header.menu.integrations")}
             </DropdownMenuItem>
+            */}
+            {/* Tạm ẩn Nhập từ zs-mkt
+            <DropdownMenuItem
+              onClick={() => {
+                onZsmktImportDialogOpen(true);
+              }}
+            >
+              <FaDownload className="mr-2 w-4 h-4 text-orange-500" />
+              {t("header.menu.importZsmkt")}
+            </DropdownMenuItem>
+            */}
+            {isLoggedIn && (
+              <DropdownMenuItem
+                onClick={() => {
+                  onOdooImportDialogOpen(true);
+                }}
+              >
+                <LuCloud className="mr-2 w-4 h-4 text-primary" />
+                {t("header.menu.importOdoo")}
+              </DropdownMenuItem>
+            )}
+            {/* Tạm ẩn Nhập Profile
             <DropdownMenuItem
               onClick={() => {
                 onImportProfileDialogOpen(true);
@@ -148,6 +225,7 @@ const HomeHeader = ({
               <FaDownload className="mr-2 w-4 h-4" />
               {t("header.menu.importProfile")}
             </DropdownMenuItem>
+            */}
           </DropdownMenuContent>
         </DropdownMenu>
         <Tooltip>

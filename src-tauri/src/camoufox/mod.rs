@@ -39,6 +39,7 @@
 pub mod config;
 pub mod data;
 pub mod env_vars;
+pub mod external_binary;
 pub mod fingerprint;
 pub mod fonts;
 pub mod geolocation;

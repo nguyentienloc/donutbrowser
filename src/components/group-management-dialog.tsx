@@ -3,6 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { GoPlus } from "react-icons/go";
 import { LuPencil, LuTrash2 } from "react-icons/lu";
 import { CreateGroupDialog } from "@/components/create-group-dialog";
@@ -81,6 +82,7 @@ export function GroupManagementDialog({
   onClose,
   onGroupManagementComplete,
 }: GroupManagementDialogProps) {
+  const { t } = useTranslation();
   const [groups, setGroups] = useState<GroupWithCount[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -218,24 +220,23 @@ export function GroupManagementDialog({
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Manage Profile Groups</DialogTitle>
+            <DialogTitle>{t("groups.management")}</DialogTitle>
             <DialogDescription>
-              Create, edit, and delete profile groups. Profiles without a group
-              will appear in the "Default" group.
+              {t("groups.noGroupsDescription")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             {/* Create new group button */}
             <div className="flex justify-between items-center">
-              <Label>Groups</Label>
+              <Label>{t("header.menu.groups")}</Label>
               <RippleButton
                 size="sm"
                 onClick={() => setCreateDialogOpen(true)}
                 className="flex gap-2 items-center"
               >
                 <GoPlus className="w-4 h-4" />
-                Create
+                {t("common.buttons.create")}
               </RippleButton>
             </div>
 
@@ -248,12 +249,11 @@ export function GroupManagementDialog({
             {/* Groups list */}
             {isLoading ? (
               <div className="text-sm text-muted-foreground">
-                Loading groups...
+                {t("common.buttons.loading")}
               </div>
             ) : groups.length === 0 ? (
               <div className="text-sm text-muted-foreground">
-                No groups created yet. Create your first group using the button
-                above.
+                {t("groups.noGroupsDescription")}
               </div>
             ) : (
               <div className="border rounded-md">
@@ -261,10 +261,14 @@ export function GroupManagementDialog({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead className="w-20">Profiles</TableHead>
+                        <TableHead>{t("profiles.table.name")}</TableHead>
+                        <TableHead className="w-20">
+                          {t("header.menu.importProfile")}
+                        </TableHead>
                         <TableHead className="w-24">Sync</TableHead>
-                        <TableHead className="w-24">Actions</TableHead>
+                        <TableHead className="w-24">
+                          {t("profiles.table.actions")}
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -371,7 +375,7 @@ export function GroupManagementDialog({
 
           <DialogFooter>
             <RippleButton variant="outline" onClick={onClose}>
-              Close
+              {t("common.buttons.close")}
             </RippleButton>
           </DialogFooter>
         </DialogContent>

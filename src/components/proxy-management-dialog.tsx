@@ -3,6 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { GoPlus } from "react-icons/go";
 import { LuDownload, LuPencil, LuTrash2, LuUpload } from "react-icons/lu";
 import { toast } from "sonner";
@@ -82,6 +83,7 @@ export function ProxyManagementDialog({
   isOpen,
   onClose,
 }: ProxyManagementDialogProps) {
+  const { t } = useTranslation();
   const [showProxyForm, setShowProxyForm] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -217,9 +219,9 @@ export function ProxyManagementDialog({
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Proxy Management</DialogTitle>
+            <DialogTitle>{t("proxies.management")}</DialogTitle>
             <DialogDescription>
-              Manage your saved proxy configurations for reuse across profiles
+              {t("proxies.noProxiesDescription")}
             </DialogDescription>
           </DialogHeader>
 
@@ -234,7 +236,7 @@ export function ProxyManagementDialog({
                   className="flex gap-2 items-center"
                 >
                   <LuUpload className="w-4 h-4" />
-                  Import
+                  {t("proxies.import")}
                 </RippleButton>
                 <RippleButton
                   size="sm"
@@ -244,7 +246,7 @@ export function ProxyManagementDialog({
                   disabled={storedProxies.length === 0}
                 >
                   <LuDownload className="w-4 h-4" />
-                  Export
+                  {t("proxies.export")}
                 </RippleButton>
               </div>
               <RippleButton
@@ -253,19 +255,18 @@ export function ProxyManagementDialog({
                 className="flex gap-2 items-center"
               >
                 <GoPlus className="w-4 h-4" />
-                Create
+                {t("proxies.add")}
               </RippleButton>
             </div>
 
             {/* Proxies list */}
             {isLoading ? (
               <div className="text-sm text-muted-foreground">
-                Loading proxies...
+                {t("common.buttons.loading")}
               </div>
             ) : storedProxies.length === 0 ? (
               <div className="text-sm text-muted-foreground">
-                No proxies created yet. Create your first proxy using the button
-                above.
+                {t("proxies.noProxiesDescription")}
               </div>
             ) : (
               <div className="border rounded-md">
@@ -273,10 +274,12 @@ export function ProxyManagementDialog({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead className="w-20">Usage</TableHead>
-                        <TableHead className="w-24">Sync</TableHead>
-                        <TableHead className="w-24">Actions</TableHead>
+                        <TableHead>{t("proxies.form.name")}</TableHead>
+                        <TableHead className="w-20">Sử dụng</TableHead>
+                        <TableHead className="w-24">Đồng bộ</TableHead>
+                        <TableHead className="w-24">
+                          {t("profiles.table.actions")}
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -417,7 +420,7 @@ export function ProxyManagementDialog({
 
           <DialogFooter>
             <RippleButton variant="outline" onClick={onClose}>
-              Close
+              {t("common.buttons.close")}
             </RippleButton>
           </DialogFooter>
         </DialogContent>

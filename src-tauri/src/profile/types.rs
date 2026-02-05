@@ -38,9 +38,19 @@ pub struct BrowserProfile {
   #[serde(default)]
   pub note: Option<String>, // User note
   #[serde(default)]
-  pub sync_enabled: bool, // Whether sync is enabled for this profile
+  pub sync_enabled: bool,
   #[serde(default)]
   pub last_sync: Option<u64>, // Timestamp of last successful sync (epoch seconds)
+  #[serde(default)]
+  pub odoo_id: Option<String>,
+  #[serde(default)]
+  pub profile_url: Option<String>,
+  #[serde(default)]
+  pub created_at: Option<u64>, // Creation timestamp in epoch seconds
+  #[serde(default)]
+  pub odoo_proxy: Option<crate::odoo::types::OdooProxy>,
+  #[serde(skip_deserializing)]
+  pub absolute_path: Option<String>,
 }
 
 pub fn default_release_type() -> String {

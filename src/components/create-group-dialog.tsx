@@ -67,18 +67,18 @@ export function CreateGroupDialog({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Create New Group</DialogTitle>
+          <DialogTitle>Tạo nhóm mới</DialogTitle>
           <DialogDescription>
-            Create a new group to organize your browser profiles.
+            Tạo nhóm mới để sắp xếp các browser profile của bạn.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="group-name">Group Name</Label>
+            <Label htmlFor="group-name">Tên nhóm</Label>
             <Input
               id="group-name"
-              placeholder="Enter group name..."
+              placeholder="Nhập tên nhóm..."
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               onKeyDown={(e) => {
@@ -103,14 +103,14 @@ export function CreateGroupDialog({
             onClick={handleClose}
             disabled={isCreating}
           >
-            Cancel
+            Hủy
           </RippleButton>
           <LoadingButton
             isLoading={isCreating}
             onClick={() => void handleCreate()}
             disabled={!groupName.trim()}
           >
-            Create
+            Tạo
           </LoadingButton>
         </DialogFooter>
       </DialogContent>

@@ -133,7 +133,7 @@ export function ProxyCheckButton({
       </TooltipTrigger>
       <TooltipContent>
         {isCurrentlyChecking ? (
-          <p>Checking proxy...</p>
+          <p>Đang kiểm tra proxy...</p>
         ) : result?.is_valid ? (
           <div className="space-y-1">
             <p className="flex items-center gap-1">
@@ -147,18 +147,18 @@ export function ProxyCheckButton({
               IP: {result.ip}
             </p>
             <p className="text-xs text-primary-foreground/70">
-              Checked {formatRelativeTime(result.timestamp)}
+              {formatRelativeTime(result.timestamp)}
             </p>
           </div>
         ) : result && !result.is_valid ? (
           <div>
-            <p>Proxy check failed</p>
+            <p>Kiểm tra thất bại</p>
             <p className="text-xs text-primary-foreground/70">
               Failed {formatRelativeTime(result.timestamp)}
             </p>
           </div>
         ) : (
-          <p>Check proxy validity</p>
+          <p>Kiểm tra proxy</p>
         )}
       </TooltipContent>
     </Tooltip>

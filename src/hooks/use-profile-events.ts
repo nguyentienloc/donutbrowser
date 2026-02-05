@@ -74,7 +74,7 @@ export function useProfileEvents(): UseProfileEventsReturn {
         // Listen for profile changes (create, delete, rename, update, etc.)
         profilesUnlisten = await listen("profiles-changed", () => {
           console.log(
-            "Received profiles-changed event, reloading profiles and groups",
+            "[use-profile-events] Received profiles-changed event, reloading profiles and groups",
           );
           void loadProfiles();
           void loadGroups();
@@ -144,7 +144,7 @@ export function useProfileEvents(): UseProfileEventsReturn {
           const next = new Set(prev);
           let hasChanges = false;
 
-          statuses.forEach(({ id, isRunning }) => {
+          for (const { id, isRunning } of statuses) {
             if (isRunning && !prev.has(id)) {
               next.add(id);
               hasChanges = true;
@@ -152,7 +152,7 @@ export function useProfileEvents(): UseProfileEventsReturn {
               next.delete(id);
               hasChanges = true;
             }
-          });
+          }
 
           return hasChanges ? next : prev;
         });

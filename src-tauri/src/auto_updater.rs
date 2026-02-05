@@ -518,8 +518,11 @@ mod tests {
       group_id: None,
       tags: Vec::new(),
       note: None,
-      sync_enabled: false,
+      created_at: None,
+      odoo_id: None,
+      profile_url: None,
       last_sync: None,
+      sync_enabled: false,
     }
   }
 

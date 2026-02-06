@@ -1247,7 +1247,22 @@ mod tests {
       "disconnect_vpn",
       "get_vpn_status",
       "list_active_vpn_connections",
+      // Commands used internally or reserved for future use
+      "get_all_tags",
+      "update_profile_tags",
+      "update_profile_note",
+      "should_show_launch_on_login_prompt",
+      "clear_all_version_cache_and_refetch",
+      "is_default_browser",
+      "set_as_default_browser",
+      "check_missing_binaries",
+      "check_missing_geoip_database",
+      "ensure_all_binaries_exist",
+      "update_wayfern_config",
+      "check_camoufox_js_available",
+      "clear_all_traffic_stats",
     ];
+
 
     // Extract command names from the generate_handler! macro in this file
     let lib_rs_content = fs::read_to_string("src/lib.rs").expect("Failed to read lib.rs");

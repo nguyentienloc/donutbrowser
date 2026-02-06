@@ -91,6 +91,13 @@ Have questions or want to contribute? We'd love to hear from you!
 	<tbody>
 		<tr>
             <td align="center">
+                <a href="https://github.com/nguyentienloc">
+                    <img src="https://avatars.githubusercontent.com/u/37792734?v=4" width="100;" alt="nguyentienloc"/>
+                    <br />
+                    <sub><b>locnguyen3103</b></sub>
+                </a>
+            </td>
+            <td align="center">
                 <a href="https://github.com/zhom">
                     <img src="https://avatars.githubusercontent.com/u/2717306?v=4" width="100;" alt="zhom"/>
                     <br />

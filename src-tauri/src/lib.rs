@@ -1263,7 +1263,6 @@ mod tests {
       "clear_all_traffic_stats",
     ];
 
-
     // Extract command names from the generate_handler! macro in this file
     let lib_rs_content = fs::read_to_string("src/lib.rs").expect("Failed to read lib.rs");
     let commands = extract_tauri_commands(&lib_rs_content);

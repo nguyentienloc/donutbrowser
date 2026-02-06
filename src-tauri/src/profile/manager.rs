@@ -492,7 +492,7 @@ impl ProfileManager {
   ) -> Result<(), Box<dyn std::error::Error>> {
     let user_js = path.join("user.js");
     let p = internal.unwrap_or(proxy);
-    
+
     let prefs = vec![
       format!("user_pref(\"network.proxy.type\", 1);"),
       format!("user_pref(\"network.proxy.share_proxy_settings\", true);"),
@@ -505,7 +505,7 @@ impl ProfileManager {
       format!("user_pref(\"network.proxy.socks_remote_dns\", true);"),
       format!("user_pref(\"network.proxy.no_proxies_on\", \"localhost, 127.0.0.1\");"),
     ];
-    
+
     fs::write(user_js, prefs.join("\n"))?;
     Ok(())
   }

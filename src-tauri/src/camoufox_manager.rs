@@ -218,7 +218,10 @@ impl CamoufoxManager {
 
     // Apply proxy settings if provided
     if let Some(proxy_url_str) = &config.proxy {
-      log::info!("Applying proxy settings for Camoufox launch: {}", proxy_url_str);
+      log::info!(
+        "Applying proxy settings for Camoufox launch: {}",
+        proxy_url_str
+      );
       if let Ok(url) = url::Url::parse(proxy_url_str) {
         let settings = crate::browser::ProxySettings {
           proxy_type: url.scheme().to_string(),
@@ -233,9 +236,11 @@ impl CamoufoxManager {
         };
 
         // 1. Write to user.js so Firefox picks it up
-        if let Err(e) = crate::profile::ProfileManager::instance()
-          .apply_proxy_settings_to_profile(std::path::Path::new(profile_path), &settings, None)
-        {
+        if let Err(e) = crate::profile::ProfileManager::instance().apply_proxy_settings_to_profile(
+          std::path::Path::new(profile_path),
+          &settings,
+          None,
+        ) {
           log::warn!("Failed to apply proxy settings to Camoufox profile: {}", e);
         }
 

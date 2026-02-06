@@ -100,17 +100,28 @@ impl BrowserRunner {
   /// Resolve the effective upstream proxy settings for a profile.
   /// Prioritizes local proxy_id, then falls back to odoo_proxy.
   pub fn resolve_upstream_proxy(&self, profile: &BrowserProfile) -> Option<ProxySettings> {
-    log::info!("Resolving upstream proxy for profile: {} (ID: {})", profile.name, profile.id);
+    log::info!(
+      "Resolving upstream proxy for profile: {} (ID: {})",
+      profile.name,
+      profile.id
+    );
     log::info!("  - proxy_id: {:?}", profile.proxy_id);
     log::info!("  - has odoo_proxy: {}", profile.odoo_proxy.is_some());
 
     // 1. Give priority to local proxy_id if set
     if let Some(proxy_id) = &profile.proxy_id {
       if let Some(settings) = PROXY_MANAGER.get_proxy_settings_by_id(proxy_id) {
-        log::info!("  => Resolved from proxy_id: {}:{}", settings.host, settings.port);
+        log::info!(
+          "  => Resolved from proxy_id: {}:{}",
+          settings.host,
+          settings.port
+        );
         return Some(settings);
       } else {
-        log::warn!("  ! proxy_id set but settings not found in PROXY_MANAGER: {}", proxy_id);
+        log::warn!(
+          "  ! proxy_id set but settings not found in PROXY_MANAGER: {}",
+          proxy_id
+        );
       }
     }
 
@@ -123,7 +134,7 @@ impl BrowserRunner {
         _ => {
           log::warn!("  ! Invalid Odoo proxy port type: {:?}", odoo_proxy.port);
           0
-        },
+        }
       };
 
       if port > 0 {
@@ -134,12 +145,25 @@ impl BrowserRunner {
           username: odoo_proxy.tendangnhap.clone(),
           password: odoo_proxy.matkhau.clone(),
         };
-        let user_masked = settings.username.as_ref().map(|u| {
-          if u.len() > 3 { format!("{}***", &u[..3]) } else { "***".to_string() }
-        }).unwrap_or_else(|| "none".to_string());
+        let user_masked = settings
+          .username
+          .as_ref()
+          .map(|u| {
+            if u.len() > 3 {
+              format!("{}***", &u[..3])
+            } else {
+              "***".to_string()
+            }
+          })
+          .unwrap_or_else(|| "none".to_string());
 
-        log::info!("  => Resolved from odoo_proxy: {}:{} (user: {}, has_pass: {})", 
-          settings.host, settings.port, user_masked, settings.password.is_some());
+        log::info!(
+          "  => Resolved from odoo_proxy: {}:{} (user: {}, has_pass: {})",
+          settings.host,
+          settings.port,
+          user_masked,
+          settings.password.is_some()
+        );
         return Some(settings);
       } else {
         log::warn!("  ! Odoo proxy port is 0 or invalid");

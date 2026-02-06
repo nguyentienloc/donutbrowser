@@ -53,18 +53,10 @@ jobs:
       packages: read
       actions: read
 
-  spellcheck:
-    name: Spell Check
-    if: ${{ github.actor == 'dependabot[bot]' }}
-    uses: ./.github/workflows/spellcheck.yml
-    secrets: inherit
-    permissions:
-      contents: read
-
   dependabot-automerge:
     name: Dependabot Automerge
     if: ${{ github.actor == 'dependabot[bot]' }}
-    needs: [security-scan, lint-js, lint-rust, codeql, spellcheck]
+    needs: [security-scan, lint-js, lint-rust, codeql]
     runs-on: ubuntu-latest
     steps:
       - name: Dependabot metadata

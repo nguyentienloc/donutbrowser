@@ -1,11 +1,8 @@
 import { useTranslation } from "react-i18next";
-import { FaDownload } from "react-icons/fa";
-import { FiWifi } from "react-icons/fi";
 import { GoGear, GoKebabHorizontal, GoPlus } from "react-icons/go";
 import {
   LuCloud,
   LuLogOut,
-  LuPlug,
   LuSearch,
   LuUser,
   LuUsers,

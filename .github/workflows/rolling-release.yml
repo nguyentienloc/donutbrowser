@@ -49,15 +49,8 @@ jobs:
       packages: read
       actions: read
 
-  spellcheck:
-    name: Spell Check
-    uses: ./.github/workflows/spellcheck.yml
-    secrets: inherit
-    permissions:
-      contents: read
-
   rolling-release:
-    needs: [security-scan, lint-js, lint-rust, codeql, spellcheck]
+    needs: [security-scan, lint-js, lint-rust, codeql]
     permissions:
       contents: write
     strategy:

@@ -523,6 +523,8 @@ mod tests {
       profile_url: None,
       last_sync: None,
       sync_enabled: false,
+      odoo_proxy: None,
+      absolute_path: None,
     }
   }
 

@@ -15,7 +15,6 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { format } from "date-fns";
 import type { Dispatch, SetStateAction } from "react";
 import * as React from "react";
-import { useTranslation } from "react-i18next";
 import { FiWifi } from "react-icons/fi";
 import { IoEllipsisHorizontal } from "react-icons/io5";
 import { LuChevronDown, LuChevronUp, LuCloud, LuLoader } from "react-icons/lu";
@@ -46,7 +45,6 @@ import { useProxyEvents } from "@/hooks/use-proxy-events";
 import { useTableSorting } from "@/hooks/use-table-sorting";
 import { getBrowserIcon } from "@/lib/browser-utils";
 import { trimName } from "@/lib/name-utils";
-import { useAuth } from "@/providers/auth-provider";
 import type {
   BrowserProfile,
   ProxyCheckResult,
@@ -171,9 +169,7 @@ export function ProfilesDataTable({
   pageSize = 50,
   onPageSizeChange,
 }: ProfilesDataTableProps) {
-  const { t } = useTranslation();
-  const { isLoggedIn } = useAuth();
-  const { updateSorting, isLoaded } = useTableSorting();
+  const { updateSorting } = useTableSorting();
 
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "created_at", desc: true },
